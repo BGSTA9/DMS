@@ -1,0 +1,693 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DMS — Driver Monitoring System</title>
+<!-- Socket.IO client for live Python backend connection -->
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Exo+2:wght@300;400;600;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #03070f;
+    --panel: rgba(4, 16, 32, 0.88);
+    --panel-border: rgba(0, 200, 255, 0.15);
+    --cyan: #00c8ff;
+    --cyan-dim: rgba(0, 200, 255, 0.4);
+    --green: #00ff88;
+    --green-dim: rgba(0, 255, 136, 0.4);
+    --yellow: #ffcc00;
+    --red: #ff3b3b;
+    --red-dim: rgba(255, 59, 59, 0.4);
+    --white: #e8f4ff;
+    --gray: #4a6a8a;
+    --font-mono: 'Share Tech Mono', monospace;
+    --font-ui: 'Rajdhani', sans-serif;
+    --font-display: 'Exo 2', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    font-family: var(--font-ui);
+    color: var(--white);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background: repeating-linear-gradient(
+      0deg, transparent, transparent 2px,
+      rgba(0,0,0,0.07) 2px, rgba(0,0,0,0.07) 4px
+    );
+    pointer-events: none;
+    z-index: 9999;
+  }
+
+  .top-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 20px;
+    background: rgba(0, 20, 40, 0.9);
+    border-bottom: 1px solid var(--panel-border);
+    flex-shrink: 0;
+    z-index: 10;
+  }
+  .top-bar-logo {
+    font-family: var(--font-display);
+    font-weight: 900;
+    font-size: 18px;
+    letter-spacing: 4px;
+    color: var(--cyan);
+    text-transform: uppercase;
+  }
+  .top-bar-logo span { color: var(--white); }
+  .top-bar-status {
+    display: flex; gap: 24px; align-items: center;
+    font-family: var(--font-mono); font-size: 12px; color: var(--gray);
+  }
+  .status-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--green); box-shadow: 0 0 8px var(--green);
+    animation: pulse-dot 2s infinite; display: inline-block; margin-right: 6px;
+  }
+  /* WS connected dot */
+  .ws-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--gray);
+    display: inline-block; margin-right: 6px;
+    transition: background 0.4s, box-shadow 0.4s;
+  }
+  .ws-dot.connected { background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .ws-dot.disconnected { background: var(--red); box-shadow: 0 0 8px var(--red-dim); }
+  @keyframes pulse-dot { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .top-bar-time { font-family: var(--font-mono); font-size: 13px; color: var(--cyan); }
+
+  .main {
+    display: grid;
+    grid-template-columns: 200px 1fr 220px;
+    flex: 1; min-height: 0; gap: 0;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    backdrop-filter: blur(12px);
+  }
+  .left-panel {
+    display: flex; flex-direction: column; gap: 0;
+    overflow-y: auto; scrollbar-width: none;
+    border-right: 1px solid var(--panel-border);
+  }
+  .left-panel::-webkit-scrollbar { display: none; }
+  .driver-card {
+    padding: 14px; border-bottom: 1px solid var(--panel-border);
+    background: rgba(0, 200, 255, 0.04);
+  }
+  .driver-avatar {
+    width: 44px; height: 44px; border-radius: 50%;
+    border: 2px solid var(--cyan); background: rgba(0,200,255,0.1);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 20px; margin-bottom: 8px; box-shadow: 0 0 12px var(--cyan-dim);
+  }
+  .driver-name { font-family: var(--font-display); font-weight: 700; font-size: 15px; color: var(--white); letter-spacing: 1px; }
+  .driver-status { font-family: var(--font-mono); font-size: 10px; color: var(--green); margin-top: 2px; }
+  .metric-section { padding: 10px 14px; border-bottom: 1px solid var(--panel-border); }
+  .metric-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px; color: var(--gray); text-transform: uppercase; margin-bottom: 6px; }
+  .bar-metric { margin-bottom: 8px; }
+  .bar-metric .bm-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px; }
+  .bm-name { font-family: var(--font-ui); font-size: 11px; font-weight: 600; letter-spacing: 1px; color: var(--white); }
+  .bm-value { font-family: var(--font-mono); font-size: 13px; font-weight: bold; }
+  .bar-track { height: 5px; background: rgba(255,255,255,0.06); border-radius: 3px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; transition: width 0.5s ease, background 0.3s; position: relative; }
+  .bar-fill::after { content: ''; position: absolute; right: 0; top: 0; bottom: 0; width: 4px; background: white; opacity: 0.6; border-radius: 3px; box-shadow: 0 0 6px white; }
+  .data-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; }
+  .data-key { font-family: var(--font-mono); font-size: 9px; color: var(--gray); letter-spacing: 1px; }
+  .data-val { font-family: var(--font-mono); font-size: 11px; color: var(--cyan); }
+  .expression-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(0,200,255,0.08); border: 1px solid var(--cyan-dim); border-radius: 4px; padding: 3px 8px; font-family: var(--font-mono); font-size: 10px; color: var(--cyan); letter-spacing: 1px; }
+  .eye-bars { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 4px; }
+  .eye-box { background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 4px; padding: 6px; text-align: center; }
+  .eye-box-label { font-family: var(--font-mono); font-size: 9px; color: var(--gray); }
+  .eye-box-val { font-family: var(--font-mono); font-size: 16px; font-weight: bold; color: var(--green); text-shadow: 0 0 10px var(--green); }
+  .video-area { position: relative; overflow: hidden; background: #000; }
+  #webcam { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+  #overlay-canvas { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; transform: scaleX(-1); }
+  .scan-line { position: absolute; left: 0; right: 0; height: 2px; background: linear-gradient(90deg, transparent, var(--cyan), transparent); opacity: 0.5; animation: scan 3s linear infinite; pointer-events: none; z-index: 5; }
+  @keyframes scan { 0% { top: 0; } 100% { top: 100%; } }
+  .bracket { position: absolute; width: 24px; height: 24px; border-color: var(--cyan); border-style: solid; opacity: 0.6; z-index: 5; }
+  .bracket-tl { top: 12px; left: 12px; border-width: 2px 0 0 2px; }
+  .bracket-tr { top: 12px; right: 12px; border-width: 2px 2px 0 0; }
+  .bracket-bl { bottom: 12px; left: 12px; border-width: 0 0 2px 2px; }
+  .bracket-br { bottom: 12px; right: 12px; border-width: 0 2px 2px 0; }
+  #alert-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 20; pointer-events: none; opacity: 0; transition: opacity 0.3s; }
+  #alert-overlay.level1 { background: rgba(255,204,0,0.08); border: 3px solid var(--yellow); opacity: 1; }
+  #alert-overlay.level2 { background: rgba(255,59,59,0.12); border: 3px solid var(--red); opacity: 1; animation: flash-border 0.5s infinite; }
+  @keyframes flash-border { 0%, 100% { border-color: var(--red); box-shadow: inset 0 0 40px rgba(255,59,59,0.2); } 50% { border-color: rgba(255,59,59,0.3); box-shadow: none; } }
+  .alert-text { font-family: var(--font-display); font-weight: 900; font-size: 36px; letter-spacing: 6px; text-transform: uppercase; }
+  .alert-sub { font-family: var(--font-mono); font-size: 13px; letter-spacing: 3px; margin-top: 6px; opacity: 0.8; }
+  .video-label { position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 11px; letter-spacing: 3px; color: rgba(255,255,255,0.4); z-index: 5; }
+  .face-lock { position: absolute; top: 12px; left: 50%; transform: translateX(-50%); font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; color: var(--cyan); background: rgba(0,0,0,0.5); padding: 3px 10px; border: 1px solid var(--cyan-dim); border-radius: 3px; z-index: 5; }
+  .right-panel { display: flex; flex-direction: column; overflow-y: auto; scrollbar-width: none; border-left: 1px solid var(--panel-border); }
+  .right-panel::-webkit-scrollbar { display: none; }
+  .section-header { padding: 10px 14px 6px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 3px; color: var(--cyan); text-transform: uppercase; border-bottom: 1px solid var(--panel-border); display: flex; align-items: center; gap: 6px; }
+  .section-header::before { content: ''; width: 3px; height: 10px; background: var(--cyan); border-radius: 2px; box-shadow: 0 0 6px var(--cyan); }
+  .alert-level-display { padding: 14px; border-bottom: 1px solid var(--panel-border); text-align: center; }
+  .alert-ring { width: 80px; height: 80px; border-radius: 50%; border: 3px solid var(--green); display: flex; flex-direction: column; align-items: center; justify-content: center; margin: 0 auto 8px; box-shadow: 0 0 16px var(--green-dim), inset 0 0 16px rgba(0,255,136,0.05); transition: all 0.5s ease; }
+  .alert-ring .ring-val { font-family: var(--font-display); font-weight: 900; font-size: 26px; line-height: 1; transition: color 0.3s; }
+  .alert-ring .ring-label { font-family: var(--font-mono); font-size: 8px; letter-spacing: 2px; color: var(--gray); }
+  .alert-status-text { font-family: var(--font-ui); font-size: 13px; font-weight: 700; letter-spacing: 2px; color: var(--green); transition: color 0.3s; }
+  .coord-grid { padding: 10px 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 6px; border-bottom: 1px solid var(--panel-border); }
+  .coord-box { background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 4px; padding: 6px; }
+  .coord-box-label { font-family: var(--font-mono); font-size: 8px; letter-spacing: 1px; color: var(--gray); margin-bottom: 2px; }
+  .coord-box-val { font-family: var(--font-mono); font-size: 12px; color: var(--cyan); }
+  .gaze-display { padding: 10px 14px; border-bottom: 1px solid var(--panel-border); }
+  .gaze-zone-badge { display: flex; align-items: center; gap: 6px; background: rgba(0,255,136,0.06); border: 1px solid var(--green-dim); border-radius: 4px; padding: 6px 10px; margin-top: 6px; }
+  .gaze-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); box-shadow: 0 0 8px var(--green); }
+  .gaze-text { font-family: var(--font-mono); font-size: 11px; color: var(--green); letter-spacing: 1px; }
+  .action-panel { padding: 10px 14px; border-bottom: 1px solid var(--panel-border); }
+  .action-badge { display: inline-flex; align-items: center; gap: 5px; background: rgba(0,200,255,0.06); border: 1px solid var(--cyan-dim); border-radius: 4px; padding: 4px 8px; font-family: var(--font-mono); font-size: 10px; color: var(--cyan); letter-spacing: 1px; margin-top: 5px; }
+  .head-dir-display { padding: 10px 14px; border-bottom: 1px solid var(--panel-border); }
+  .dir-values { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 6px; }
+  .dir-val-box { text-align: center; background: rgba(0,0,0,0.3); border: 1px solid var(--panel-border); border-radius: 3px; padding: 5px; }
+  .dir-axis { font-family: var(--font-mono); font-size: 8px; color: var(--gray); }
+  .dir-num { font-family: var(--font-mono); font-size: 13px; color: var(--yellow); }
+  .bottom-bar { display: grid; grid-template-columns: repeat(5, 1fr); border-top: 1px solid var(--panel-border); background: rgba(0,10,20,0.95); flex-shrink: 0; }
+  .bottom-metric { padding: 8px 16px; border-right: 1px solid var(--panel-border); display: flex; flex-direction: column; gap: 3px; }
+  .bottom-metric:last-child { border-right: none; }
+  .bm-top { display: flex; justify-content: space-between; align-items: baseline; }
+  .bm-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px; color: var(--gray); text-transform: uppercase; }
+  .bm-big { font-family: var(--font-display); font-weight: 700; font-size: 18px; line-height: 1; transition: color 0.3s; }
+  .bm-sub { font-family: var(--font-mono); font-size: 9px; color: var(--gray); }
+  .mini-bar { height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; }
+  .mini-fill { height: 100%; border-radius: 2px; transition: width 0.5s ease, background 0.3s; }
+  #start-screen { position: absolute; inset: 0; background: rgba(0,0,0,0.85); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 100; gap: 16px; }
+  #start-screen h2 { font-family: var(--font-display); font-weight: 900; font-size: 22px; letter-spacing: 4px; color: var(--cyan); text-transform: uppercase; }
+  #start-screen p { font-family: var(--font-mono); font-size: 12px; color: var(--gray); letter-spacing: 2px; }
+  #start-btn { margin-top: 10px; padding: 12px 36px; background: transparent; border: 2px solid var(--cyan); color: var(--cyan); font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: 3px; text-transform: uppercase; cursor: pointer; border-radius: 4px; box-shadow: 0 0 20px var(--cyan-dim); transition: all 0.3s; position: relative; overflow: hidden; }
+  #start-btn::before { content: ''; position: absolute; inset: 0; background: var(--cyan); opacity: 0; transition: opacity 0.3s; }
+  #start-btn:hover { color: var(--bg); }
+  #start-btn:hover::before { opacity: 1; }
+  #start-btn span { position: relative; z-index: 1; }
+  #no-face { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; color: rgba(255,59,59,0.6); background: rgba(0,0,0,0.6); padding: 6px 14px; border: 1px solid rgba(255,59,59,0.3); border-radius: 4px; z-index: 10; display: none; animation: blink 1s infinite; }
+  @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+  .ear-chart-container { padding: 10px 14px; border-bottom: 1px solid var(--panel-border); }
+  #ear-canvas { width: 100%; height: 50px; display: block; border: 1px solid var(--panel-border); border-radius: 3px; background: rgba(0,0,0,0.4); }
+  .small-title { font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px; color: var(--gray); margin-bottom: 5px; text-transform: uppercase; }
+  /* WS mode indicator badge */
+  .mode-badge { position: absolute; top: 12px; right: 12px; font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px; padding: 3px 8px; border-radius: 3px; z-index: 15; background: rgba(0,0,0,0.6); }
+  .mode-badge.live { color: var(--green); border: 1px solid var(--green-dim); }
+  .mode-badge.sim  { color: var(--yellow); border: 1px solid rgba(255,204,0,0.4); }
+</style>
+</head>
+<body>
+
+<div class="top-bar">
+  <div class="top-bar-logo">DMS <span>// Driver Monitoring System</span></div>
+  <div class="top-bar-status">
+    <span><span class="status-dot"></span>CAMERA ACTIVE</span>
+    <span><span class="ws-dot" id="ws-dot"></span><span id="ws-label">WS OFFLINE</span></span>
+    <span id="fps-display">-- FPS</span>
+    <span>SESSION: <span id="session-id" style="color:var(--cyan)">DMS-0000</span></span>
+  </div>
+  <div class="top-bar-time" id="clock">--:--:--</div>
+</div>
+
+<div class="main">
+  <div class="left-panel panel">
+    <div class="driver-card">
+      <div class="driver-avatar">👤</div>
+      <div class="driver-name">DRIVER</div>
+      <div class="driver-status" id="driver-status-text">● MONITORING ACTIVE</div>
+    </div>
+    <div class="metric-section">
+      <div class="metric-label">▸ THREAT LEVELS</div>
+      <div class="bar-metric">
+        <div class="bm-header">
+          <span class="bm-name">DISTRACTION</span>
+          <span class="bm-value" id="distraction-pct" style="color:var(--green)">0%</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="distraction-bar" style="width:0%;background:var(--green)"></div></div>
+      </div>
+      <div class="bar-metric">
+        <div class="bm-header">
+          <span class="bm-name">DROWSINESS</span>
+          <span class="bm-value" id="drowsy-pct" style="color:var(--green)">0%</span>
+        </div>
+        <div class="bar-track"><div class="bar-fill" id="drowsy-bar" style="width:0%;background:var(--green)"></div></div>
+      </div>
+    </div>
+    <div class="metric-section">
+      <div class="metric-label">▸ EXPRESSION</div>
+      <div class="expression-badge" id="expression-badge">⬡ NEUTRAL</div>
+    </div>
+    <div class="metric-section">
+      <div class="metric-label">▸ EYE OPENNESS</div>
+      <div class="eye-bars">
+        <div class="eye-box"><div class="eye-box-label">LEFT</div><div class="eye-box-val" id="eye-l">--</div></div>
+        <div class="eye-box"><div class="eye-box-label">RIGHT</div><div class="eye-box-val" id="eye-r">--</div></div>
+      </div>
+    </div>
+    <div class="metric-section">
+      <div class="metric-label">▸ EAR (EYE ASPECT RATIO)</div>
+      <div class="data-row"><span class="data-key">CURRENT</span><span class="data-val" id="ear-val">0.000</span></div>
+      <div class="data-row"><span class="data-key">THRESHOLD</span><span class="data-val" style="color:var(--yellow)">0.250</span></div>
+      <div class="data-row"><span class="data-key">STATUS</span><span class="data-val" id="ear-status" style="color:var(--green)">OPEN</span></div>
+    </div>
+    <div class="ear-chart-container">
+      <div class="small-title">EAR HISTORY</div>
+      <canvas id="ear-canvas"></canvas>
+    </div>
+  </div>
+
+  <div class="video-area">
+    <video id="webcam" autoplay muted playsinline></video>
+    <canvas id="overlay-canvas"></canvas>
+    <div class="scan-line"></div>
+    <div class="bracket bracket-tl"></div>
+    <div class="bracket bracket-tr"></div>
+    <div class="bracket bracket-bl"></div>
+    <div class="bracket bracket-br"></div>
+    <div class="face-lock" id="face-lock">⬡ SCANNING FOR FACE...</div>
+    <div class="video-label">DRIVER MONITORING SYSTEM  //  REAL-TIME AI ANALYSIS</div>
+    <div id="no-face">⚠ NO FACE DETECTED</div>
+    <div id="alert-overlay">
+      <div class="alert-text" id="alert-text"></div>
+      <div class="alert-sub" id="alert-sub"></div>
+    </div>
+    <div class="mode-badge sim" id="mode-badge">⬡ SIMULATION MODE</div>
+    <div id="start-screen">
+      <h2>⬡ Driver Monitoring System</h2>
+      <p>WEBCAM ACCESS REQUIRED FOR REAL-TIME MONITORING</p>
+      <p style="font-size:10px;color:#2a4a6a">Uses your camera to analyze driver state using AI</p>
+      <button id="start-btn" onclick="startCamera()"><span>▶ INITIALIZE CAMERA</span></button>
+    </div>
+  </div>
+
+  <div class="right-panel panel">
+    <div class="section-header">ALERT LEVEL</div>
+    <div class="alert-level-display">
+      <div class="alert-ring" id="alert-ring">
+        <div class="ring-val" id="alert-ring-val" style="color:var(--green)">0</div>
+        <div class="ring-label">THREAT</div>
+      </div>
+      <div class="alert-status-text" id="alert-status">DRIVER ALERT</div>
+    </div>
+    <div class="section-header">HEAD DIR (PYR)</div>
+    <div class="head-dir-display">
+      <div class="dir-values">
+        <div class="dir-val-box"><div class="dir-axis">PITCH</div><div class="dir-num" id="pitch-val">0°</div></div>
+        <div class="dir-val-box"><div class="dir-axis">YAW</div><div class="dir-num" id="yaw-val">0°</div></div>
+        <div class="dir-val-box"><div class="dir-axis">ROLL</div><div class="dir-num" id="roll-val">0°</div></div>
+      </div>
+    </div>
+    <div class="section-header">EYE LOC (mm)</div>
+    <div class="coord-grid">
+      <div class="coord-box"><div class="coord-box-label">L — X</div><div class="coord-box-val" id="eyel-x">---</div></div>
+      <div class="coord-box"><div class="coord-box-label">L — Y</div><div class="coord-box-val" id="eyel-y">---</div></div>
+      <div class="coord-box"><div class="coord-box-label">R — X</div><div class="coord-box-val" id="eyer-x">---</div></div>
+      <div class="coord-box"><div class="coord-box-label">R — Y</div><div class="coord-box-val" id="eyer-y">---</div></div>
+    </div>
+    <div class="section-header">GAZE ZONE</div>
+    <div class="gaze-display">
+      <div class="gaze-zone-badge">
+        <div class="gaze-dot" id="gaze-dot"></div>
+        <div class="gaze-text" id="gaze-zone">FRONT WINDSHIELD</div>
+      </div>
+      <div style="margin-top:8px">
+        <div class="data-row"><span class="data-key">GAZE DIR (P)</span><span class="data-val" id="gaze-p">+0°</span></div>
+        <div class="data-row"><span class="data-key">GAZE DIR (Y)</span><span class="data-val" id="gaze-y">+0°</span></div>
+      </div>
+    </div>
+    <div class="section-header">HEAD ZONE</div>
+    <div class="action-panel"><div class="action-badge" id="head-zone-badge">⬡ CENTERED</div></div>
+    <div class="section-header">REGULAR ACTION</div>
+    <div class="action-panel"><div class="action-badge" id="action-badge">⬡ DRIVING</div></div>
+    <div class="section-header">BLINK RATE</div>
+    <div style="padding:10px 14px; border-bottom:1px solid var(--panel-border);">
+      <div class="data-row"><span class="data-key">PER MIN</span><span class="data-val" id="blink-rate">--</span></div>
+      <div class="data-row"><span class="data-key">TOTAL BLINKS</span><span class="data-val" id="blink-total">0</span></div>
+      <div class="data-row"><span class="data-key">MICROSLEEP EVENTS</span><span class="data-val" id="microsleep-count" style="color:var(--red)">0</span></div>
+    </div>
+  </div>
+</div>
+
+<div class="bottom-bar">
+  <div class="bottom-metric">
+    <div class="bm-top"><span class="bm-label">DROWSY SCORE</span><span class="bm-big" id="bot-drowsy" style="color:var(--green)">0%</span></div>
+    <div class="bm-sub" id="bot-drowsy-sub">ALERT</div>
+    <div class="mini-bar"><div class="mini-fill" id="bot-drowsy-fill" style="width:0%;background:var(--green)"></div></div>
+  </div>
+  <div class="bottom-metric">
+    <div class="bm-top"><span class="bm-label">EAR VALUE</span><span class="bm-big" id="bot-ear" style="color:var(--cyan)">0.00</span></div>
+    <div class="bm-sub">EYE ASPECT RATIO</div>
+    <div class="mini-bar"><div class="mini-fill" id="bot-ear-fill" style="width:100%;background:var(--cyan)"></div></div>
+  </div>
+  <div class="bottom-metric">
+    <div class="bm-top"><span class="bm-label">YAWN DETECT</span><span class="bm-big" id="bot-yawn" style="color:var(--green)">NO</span></div>
+    <div class="bm-sub" id="bot-yawn-sub">MAR NORMAL</div>
+    <div class="mini-bar"><div class="mini-fill" id="bot-yawn-fill" style="width:0%;background:var(--green)"></div></div>
+  </div>
+  <div class="bottom-metric">
+    <div class="bm-top"><span class="bm-label">HEAD POSE</span><span class="bm-big" id="bot-head" style="color:var(--cyan)">OK</span></div>
+    <div class="bm-sub" id="bot-head-sub">CENTERED</div>
+    <div class="mini-bar"><div class="mini-fill" id="bot-head-fill" style="width:20%;background:var(--cyan)"></div></div>
+  </div>
+  <div class="bottom-metric">
+    <div class="bm-top"><span class="bm-label">ALERT STATUS</span><span class="bm-big" id="bot-alert" style="color:var(--green)">L0</span></div>
+    <div class="bm-sub" id="bot-alert-sub">MONITORING</div>
+    <div class="mini-bar"><div class="mini-fill" id="bot-alert-fill" style="width:5%;background:var(--green)"></div></div>
+  </div>
+</div>
+
+<script>
+// ── WEBSOCKET CONNECTION ──────────────────────────────────────────────────────
+// Connects to the Python DMS backend at localhost:5000.
+// Falls back to simulation mode when the backend is not running.
+// ─────────────────────────────────────────────────────────────────────────────
+
+let wsConnected = false;
+
+function initWebSocket() {
+  try {
+    const socket = io('http://localhost:5000', {
+      reconnection: true,
+      reconnectionDelay: 2000,
+      timeout: 3000,
+    });
+
+    socket.on('connect', () => {
+      wsConnected = true;
+      document.getElementById('ws-dot').className   = 'ws-dot connected';
+      document.getElementById('ws-label').textContent = 'WS LIVE';
+      document.getElementById('mode-badge').className = 'mode-badge live';
+      document.getElementById('mode-badge').textContent = '⬡ AI LIVE';
+      console.log('[DMS HUD] WebSocket connected to Python backend.');
+    });
+
+    socket.on('disconnect', () => {
+      wsConnected = false;
+      document.getElementById('ws-dot').className   = 'ws-dot disconnected';
+      document.getElementById('ws-label').textContent = 'WS OFFLINE';
+      document.getElementById('mode-badge').className = 'mode-badge sim';
+      document.getElementById('mode-badge').textContent = '⬡ SIMULATION MODE';
+      console.warn('[DMS HUD] WebSocket disconnected. Falling back to simulation.');
+    });
+
+    // ── Live data handler ───────────────────────────────────────────────────
+    socket.on('frame_data', (data) => {
+      // Overwrite simulated state with real AI output
+      state.ear              = data.ear;
+      state.earL             = data.earL;
+      state.earR             = data.earR;
+      state.mar              = data.mar;
+      state.pitch            = data.pitch;
+      state.yaw              = data.yaw;
+      state.roll             = data.roll;
+      state.faceDetected     = data.faceDetected;
+      state.eyeLX            = data.eyeLX;
+      state.eyeLY            = data.eyeLY;
+      state.eyeRX            = data.eyeRX;
+      state.eyeRY            = data.eyeRY;
+      state.drowsyScore      = data.drowsyScore;
+      state.distractionScore = data.distractionScore;
+      state.alertLevel       = data.alertLevel;
+      state.blinkCount       = data.blinkCount;
+      state.microsleepEvents = data.microsleepEvents;
+      if (data.expression)   state.expression = data.expression;
+
+      // Push EAR into history for the chart
+      state.earHistory.push(state.ear);
+      if (state.earHistory.length > 120) state.earHistory.shift();
+    });
+
+  } catch (e) {
+    console.warn('[DMS HUD] Socket.IO unavailable:', e);
+  }
+}
+
+// Initialise immediately — will silently fail if backend not running
+initWebSocket();
+
+// ── STATE ─────────────────────────────────────────────────────────────────────
+const state = {
+  running: false, faceDetected: false, earHistory: [],
+  blinkCount: 0, blinkInProgress: false, microsleepEvents: 0,
+  drowsyFrames: 0, alertLevel: 0, sessionStart: Date.now(),
+  frameCount: 0, lastFpsTime: Date.now(), fps: 0,
+  ear: 0.30, earL: 0.30, earR: 0.30, mar: 0.10,
+  pitch: 0, yaw: 0, roll: 0,
+  eyeLX: 0, eyeLY: 0, eyeRX: 0, eyeRY: 0,
+  drowsyScore: 0, distractionScore: 0,
+  expression: 'NEUTRAL',
+};
+
+const EAR_THRESHOLD = 0.25;
+const MAR_THRESHOLD = 0.5;
+
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toTimeString().slice(0, 8);
+}
+setInterval(updateClock, 1000); updateClock();
+document.getElementById('session-id').textContent = 'DMS-' + Math.random().toString(36).slice(2,6).toUpperCase();
+
+async function startCamera() {
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1280 }, height: { ideal: 720 }, facingMode: 'user' }, audio: false });
+    const video = document.getElementById('webcam');
+    video.srcObject = stream;
+    video.onloadedmetadata = () => {
+      video.play();
+      document.getElementById('start-screen').style.display = 'none';
+      state.running = true;
+      initCanvas();
+      requestAnimationFrame(processFrame);
+    };
+  } catch(e) { alert('Camera access denied. Please allow camera permissions.'); }
+}
+
+let ctx, canvas, video, earCanvas, earCtx;
+
+function initCanvas() {
+  video = document.getElementById('webcam');
+  canvas = document.getElementById('overlay-canvas');
+  earCanvas = document.getElementById('ear-canvas');
+  function resize() {
+    canvas.width = canvas.offsetWidth; canvas.height = canvas.offsetHeight;
+    earCanvas.width = earCanvas.offsetWidth; earCanvas.height = earCanvas.offsetHeight;
+  }
+  resize(); window.addEventListener('resize', resize);
+  ctx = canvas.getContext('2d'); earCtx = earCanvas.getContext('2d');
+}
+
+let faceBoxX = 0.3, faceBoxY = 0.1, faceBoxW = 0.35, faceBoxH = 0.7;
+let targetFBX = 0.3, targetFBY = 0.1;
+
+// ── SIMULATION (active when WebSocket not connected) ──────────────────────────
+function analyzeFrame() {
+  if (wsConnected) return;  // real data already in state via socket.on()
+  if (!video || video.readyState < 2) return;
+  const off = document.createElement('canvas'); off.width = 64; off.height = 36;
+  const offCtx = off.getContext('2d'); offCtx.drawImage(video, 0, 0, 64, 36);
+  const pixels = offCtx.getImageData(0, 0, 64, 36).data;
+  let totalBright = 0, samples = 0;
+  for (let i = 0; i < pixels.length; i += 16) { totalBright += (pixels[i]+pixels[i+1]+pixels[i+2])/3; samples++; }
+  state.faceDetected = (totalBright/samples) > 20 && (totalBright/samples) < 240;
+  const t = Date.now() / 1000;
+  const baseEAR = 0.30 + Math.sin(t * 0.3) * 0.03;
+  if (Math.random() < 0.008 && !state.blinkInProgress) {
+    state.blinkInProgress = true; state.blinkCount++;
+    setTimeout(() => { state.blinkInProgress = false; }, 150 + Math.random() * 100);
+  }
+  state.ear = state.blinkInProgress ? 0.08 + Math.random() * 0.05 : baseEAR + (Math.random()-0.5)*0.02;
+  state.earL = state.ear + (Math.random()-0.5)*0.02;
+  state.earR = state.ear + (Math.random()-0.5)*0.02;
+  state.pitch = Math.round(Math.sin(t*0.15)*8 + (Math.random()-0.5)*2);
+  state.yaw   = Math.round(Math.sin(t*0.2)*12 + (Math.random()-0.5)*3);
+  state.roll  = Math.round(Math.sin(t*0.1)*5 + (Math.random()-0.5)*1);
+  state.mar = 0.12 + Math.max(0, Math.sin(t*0.07)) * 0.5 + (Math.random()-0.5)*0.02;
+  state.eyeLX = Math.round(200 + state.yaw*2); state.eyeLY = Math.round(80 + state.pitch*1.5);
+  state.eyeRX = Math.round(170 + state.yaw*2); state.eyeRY = Math.round(82 + state.pitch*1.5);
+  if (state.ear < EAR_THRESHOLD) state.drowsyFrames++;
+  else state.drowsyFrames = Math.max(0, state.drowsyFrames - 2);
+  state.distractionScore = Math.round(state.distractionScore*0.92 + Math.min(100,Math.abs(state.yaw)*3)*0.08);
+  state.drowsyScore = Math.round(state.drowsyScore*0.9 + Math.min(100,state.drowsyFrames*2)*0.1);
+  state.alertLevel = state.drowsyScore > 60 || state.ear < 0.15 ? 2 : state.drowsyScore > 30 || state.ear < EAR_THRESHOLD ? 1 : 0;
+  state.earHistory.push(state.ear);
+  if (state.earHistory.length > 120) state.earHistory.shift();
+  faceBoxX += (targetFBX - faceBoxX) * 0.05;
+  faceBoxY += (targetFBY - faceBoxY) * 0.05;
+}
+
+function drawOverlay() {
+  if (!ctx) return;
+  const W = canvas.width, H = canvas.height;
+  ctx.clearRect(0, 0, W, H);
+  if (!state.faceDetected) return;
+  const bx = faceBoxX*W, by = faceBoxY*H, bw = faceBoxW*W, bh = faceBoxH*H;
+  const col = ['#00ff88','#ffcc00','#ff3b3b'][state.alertLevel];
+  ctx.strokeStyle = col; ctx.lineWidth = 2; ctx.shadowColor = col; ctx.shadowBlur = 8;
+  const cs = 28;
+  [[0,cs,0,0,cs,0],[bw-cs,0,bw,0,bw,cs],[0,bh-cs,0,bh,cs,bh],[bw-cs,bh,bw,bh,bw,bh-cs]].forEach(([x1,y1,x2,y2,x3,y3]) => {
+    ctx.beginPath(); ctx.moveTo(bx+x1,by+y1); ctx.lineTo(bx+x2,by+y2); ctx.lineTo(bx+x3,by+y3); ctx.stroke();
+  });
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = `${col}08`; ctx.fillRect(bx,by,bw,bh);
+  const eyeY = by+bh*0.35;
+  drawEyeLandmarks(ctx, bx+bw*0.32, eyeY, 18, state.earL, col);
+  drawEyeLandmarks(ctx, bx+bw*0.68, eyeY, 18, state.earR, col);
+  drawMouthLandmarks(ctx, bx+bw*0.5, by+bh*0.72, 22, state.mar, col);
+  ctx.strokeStyle=`${col}50`; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(bx+bw*0.5,by+bh*0.3); ctx.lineTo(bx+bw*0.5,by+bh*0.62); ctx.stroke();
+  ctx.fillStyle=col; ctx.beginPath(); ctx.arc(bx+bw*0.5,by+bh*0.58,2.5,0,Math.PI*2); ctx.fill();
+  drawHeadAxes(ctx, bx+bw/2, by+bh/2, bw*0.42, state.pitch, state.yaw, state.roll);
+  ctx.fillStyle=col; ctx.font='10px Share Tech Mono'; ctx.fillText(`EAR: ${state.ear.toFixed(3)}`,bx+4,by-6);
+  ctx.fillStyle=`${col}30`; ctx.fillRect(bx+2,by+4,bw-4,3);
+  ctx.fillStyle=col; ctx.fillRect(bx+2,by+4,bw*Math.min(1,state.ear/0.35)-4,3);
+}
+
+function drawEyeLandmarks(ctx,cx,cy,r,ear,color) {
+  const eyeH = r*ear*2.5;
+  ctx.strokeStyle=color; ctx.lineWidth=1.2; ctx.shadowColor=color; ctx.shadowBlur=6;
+  ctx.beginPath(); ctx.ellipse(cx,cy,r,Math.max(2,eyeH),0,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle=`${color}60`; ctx.beginPath(); ctx.arc(cx,cy,3,0,Math.PI*2); ctx.fill();
+  ctx.fillStyle=color;
+  [[-r,0],[r,0],[0,-eyeH],[0,eyeH]].forEach(([dx,dy]) => { ctx.beginPath(); ctx.arc(cx+dx,cy+dy,2,0,Math.PI*2); ctx.fill(); });
+  ctx.shadowBlur=0;
+}
+
+function drawMouthLandmarks(ctx,cx,cy,r,mar,color) {
+  const mH = r*mar*1.2;
+  ctx.strokeStyle=`${color}80`; ctx.lineWidth=1.2;
+  ctx.beginPath(); ctx.ellipse(cx,cy,r,Math.max(2,mH),0,0,Math.PI*2); ctx.stroke();
+  ctx.fillStyle=`${color}80`;
+  [[-r,0],[r,0]].forEach(([dx,dy]) => { ctx.beginPath(); ctx.arc(cx+dx,cy+dy,2,0,Math.PI*2); ctx.fill(); });
+}
+
+function drawHeadAxes(ctx,cx,cy,size,pitch,yaw,roll) {
+  const rRoll = roll*Math.PI/180;
+  ctx.strokeStyle='#ff4444'; ctx.lineWidth=2; ctx.shadowColor='#ff4444'; ctx.shadowBlur=5;
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+size*0.6*Math.cos(rRoll),cy+size*0.6*Math.sin(rRoll)); ctx.stroke();
+  ctx.strokeStyle='#4488ff';
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx-size*0.5*Math.sin(rRoll),cy+size*0.5*Math.cos(rRoll)); ctx.stroke();
+  ctx.strokeStyle='#00ffcc'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(cx,cy); ctx.lineTo(cx+yaw*0.8,cy+pitch*0.8); ctx.stroke();
+  ctx.shadowBlur=0;
+}
+
+function drawEarChart() {
+  if (!earCtx || state.earHistory.length < 2) return;
+  const W=earCanvas.width, H=earCanvas.height;
+  earCtx.clearRect(0,0,W,H);
+  const threshY = H-(EAR_THRESHOLD/0.4)*H;
+  earCtx.strokeStyle='rgba(255,204,0,0.4)'; earCtx.lineWidth=1; earCtx.setLineDash([4,4]);
+  earCtx.beginPath(); earCtx.moveTo(0,threshY); earCtx.lineTo(W,threshY); earCtx.stroke();
+  earCtx.setLineDash([]);
+  earCtx.strokeStyle='#00c8ff'; earCtx.lineWidth=1.5; earCtx.shadowColor='#00c8ff'; earCtx.shadowBlur=4;
+  earCtx.beginPath();
+  state.earHistory.forEach((v,i) => {
+    const x=(i/(state.earHistory.length-1))*W, y=H-(Math.min(0.4,v)/0.4)*H;
+    i===0 ? earCtx.moveTo(x,y) : earCtx.lineTo(x,y);
+  });
+  earCtx.stroke(); earCtx.shadowBlur=0;
+}
+
+function colorFor(pct) { return pct<30?'#00ff88':pct<60?'#ffcc00':'#ff3b3b'; }
+function setElem(id,val) { const el=document.getElementById(id); if(el) el.textContent=val; }
+function setColor(id,color) { const el=document.getElementById(id); if(el) el.style.color=color; }
+
+function updateUI() {
+  const fl=document.getElementById('face-lock'), nf=document.getElementById('no-face');
+  if (state.faceDetected) { fl.textContent='⬡ FACE LOCKED'; fl.style.color='var(--green)'; nf.style.display='none'; }
+  else { fl.textContent='⬡ SCANNING...'; fl.style.color='var(--cyan)'; nf.style.display='block'; }
+  const dColor=colorFor(state.distractionScore);
+  setElem('distraction-pct',`${state.distractionScore}%`); setColor('distraction-pct',dColor);
+  document.getElementById('distraction-bar').style.width=state.distractionScore+'%';
+  document.getElementById('distraction-bar').style.background=dColor;
+  const drowColor=colorFor(state.drowsyScore);
+  setElem('drowsy-pct',`${state.drowsyScore}%`); setColor('drowsy-pct',drowColor);
+  document.getElementById('drowsy-bar').style.width=state.drowsyScore+'%';
+  document.getElementById('drowsy-bar').style.background=drowColor;
+  const expr = state.expression || (state.mar>MAR_THRESHOLD?'YAWNING':state.ear<0.2?'DROWSY':Math.abs(state.yaw)>20?'DISTRACTED':'NEUTRAL');
+  document.getElementById('expression-badge').textContent='⬡ '+expr;
+  const eLPct=Math.round(Math.min(100,state.earL/0.35*100)), eRPct=Math.round(Math.min(100,state.earR/0.35*100));
+  setElem('eye-l',eLPct+'%'); setColor('eye-l',eLPct<70?'var(--red)':'var(--green)');
+  setElem('eye-r',eRPct+'%'); setColor('eye-r',eRPct<70?'var(--red)':'var(--green)');
+  setElem('ear-val',state.ear.toFixed(3));
+  setElem('ear-status',state.ear<EAR_THRESHOLD?'CLOSED':'OPEN');
+  setColor('ear-status',state.ear<EAR_THRESHOLD?'var(--red)':'var(--green)');
+  setElem('pitch-val',(state.pitch>=0?'+':'')+state.pitch+'°');
+  setElem('yaw-val',(state.yaw>=0?'+':'')+state.yaw+'°');
+  setElem('roll-val',(state.roll>=0?'+':'')+state.roll+'°');
+  setElem('eyel-x',state.eyeLX); setElem('eyel-y',state.eyeLY);
+  setElem('eyer-x',state.eyeRX); setElem('eyer-y',state.eyeRY);
+  let gazeZone='FRONT WINDSHIELD', gazeColor='var(--green)';
+  if(Math.abs(state.yaw)>25){gazeZone='SIDE WINDOW';gazeColor='var(--yellow)';}
+  else if(Math.abs(state.yaw)>15){gazeZone='DASHBOARD';gazeColor='var(--yellow)';}
+  else if(state.pitch<-15){gazeZone='LAP / PHONE';gazeColor='var(--red)';}
+  setElem('gaze-zone',gazeZone);
+  document.getElementById('gaze-dot').style.background=gazeColor;
+  document.getElementById('gaze-text') && (document.getElementById('gaze-text').style.color=gazeColor);
+  setElem('gaze-p',(state.pitch>=0?'+':'')+state.pitch+'°');
+  setElem('gaze-y',(state.yaw>=0?'+':'')+state.yaw+'°');
+  let hz='CENTERED';
+  if(Math.abs(state.yaw)>20) hz='TURNING'; else if(state.pitch<-10) hz='LOOKING DOWN'; else if(state.pitch>10) hz='LOOKING UP';
+  setElem('head-zone-badge','⬡ '+hz);
+  let act='DRIVING';
+  if(state.mar>MAR_THRESHOLD) act='YAWNING'; else if(state.ear<EAR_THRESHOLD) act='EYES CLOSING'; else if(Math.abs(state.yaw)>20) act='LOOKING AWAY';
+  setElem('action-badge','⬡ '+act);
+  const sessionMin=(Date.now()-state.sessionStart)/60000;
+  setElem('blink-rate',sessionMin>0?Math.round(state.blinkCount/sessionMin)+'/min':'--');
+  setElem('blink-total',state.blinkCount);
+  setElem('microsleep-count',state.microsleepEvents);
+  const aColors=['#00ff88','#ffcc00','#ff3b3b'];
+  const ring=document.getElementById('alert-ring');
+  ring.style.borderColor=aColors[state.alertLevel];
+  ring.style.boxShadow=`0 0 16px ${aColors[state.alertLevel]}40`;
+  document.getElementById('alert-ring-val').textContent=state.alertLevel;
+  document.getElementById('alert-ring-val').style.color=aColors[state.alertLevel];
+  document.getElementById('alert-status').textContent=['DRIVER ALERT','WARNING','CRITICAL'][state.alertLevel];
+  document.getElementById('alert-status').style.color=aColors[state.alertLevel];
+  const overlay=document.getElementById('alert-overlay');
+  overlay.className='';
+  if(state.alertLevel===2){overlay.classList.add('level2');document.getElementById('alert-text').textContent='⚠ CRITICAL ALERT';document.getElementById('alert-text').style.color='#ff3b3b';document.getElementById('alert-sub').textContent='— PULL OVER IMMEDIATELY —';document.getElementById('alert-sub').style.color='#ff3b3b';}
+  else if(state.alertLevel===1){overlay.classList.add('level1');document.getElementById('alert-text').textContent='⚠ STAY ALERT';document.getElementById('alert-text').style.color='#ffcc00';document.getElementById('alert-sub').textContent='DROWSINESS DETECTED';document.getElementById('alert-sub').style.color='#ffcc00';}
+  const driverStatus=document.getElementById('driver-status-text');
+  driverStatus.textContent=['● MONITORING ACTIVE','● WARNING ACTIVE','● EMERGENCY PROTOCOL'][state.alertLevel];
+  driverStatus.style.color=['var(--green)','var(--yellow)','var(--red)'][state.alertLevel];
+  setElem('bot-drowsy',state.drowsyScore+'%'); setColor('bot-drowsy',colorFor(state.drowsyScore));
+  setElem('bot-drowsy-sub',['ALERT','WARNING','CRITICAL'][state.alertLevel]);
+  document.getElementById('bot-drowsy-fill').style.width=state.drowsyScore+'%';
+  document.getElementById('bot-drowsy-fill').style.background=colorFor(state.drowsyScore);
+  setElem('bot-ear',state.ear.toFixed(2));
+  document.getElementById('bot-ear-fill').style.width=Math.min(100,(state.ear/0.35)*100)+'%';
+  const yw=state.mar>MAR_THRESHOLD;
+  setElem('bot-yawn',yw?'YES':'NO'); setColor('bot-yawn',yw?'var(--red)':'var(--green)');
+  setElem('bot-yawn-sub',`MAR: ${state.mar.toFixed(2)}`);
+  document.getElementById('bot-yawn-fill').style.width=Math.min(100,state.mar*150)+'%';
+  document.getElementById('bot-yawn-fill').style.background=yw?'var(--red)':'var(--green)';
+  const hb=Math.abs(state.yaw)>20||state.pitch<-15;
+  setElem('bot-head',hb?'WARN':'OK'); setColor('bot-head',hb?'var(--yellow)':'var(--cyan)');
+  setElem('bot-head-sub',`Y:${state.yaw>0?'+':''}${state.yaw}° P:${state.pitch>0?'+':''}${state.pitch}°`);
+  setElem('bot-alert',['L0','L1','L2'][state.alertLevel]);
+  setColor('bot-alert',['var(--green)','var(--yellow)','var(--red)'][state.alertLevel]);
+  setElem('bot-alert-sub',['MONITORING','DROWSY','CRITICAL'][state.alertLevel]);
+  document.getElementById('bot-alert-fill').style.width=[10,55,100][state.alertLevel]+'%';
+  document.getElementById('bot-alert-fill').style.background=['var(--green)','var(--yellow)','var(--red)'][state.alertLevel];
+  state.frameCount++;
+  const now=Date.now();
+  if(now-state.lastFpsTime>1000){state.fps=state.frameCount;state.frameCount=0;state.lastFpsTime=now;document.getElementById('fps-display').textContent=state.fps+' FPS';}
+}
+
+function processFrame() {
+  if (!state.running) return;
+  analyzeFrame(); drawOverlay(); drawEarChart(); updateUI();
+  requestAnimationFrame(processFrame);
+}
+</script>
+</body>
+</html>
