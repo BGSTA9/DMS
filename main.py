@@ -2,6 +2,11 @@
 main.py — DMS Entry Point
 Orchestrates all modules in the real-time drowsiness detection pipeline.
 
+macOS NOTE: OBJC_DISABLE_INITIALIZE_FORK_SAFETY=YES must be set BEFORE any
+C-extension (cv2, mediapipe, torch) is imported, otherwise macOS raises:
+  libc++abi: terminating due to uncaught exception … mutex lock failed
+This is set programmatically here so the user doesn't need a shell export.
+
 Pipeline per frame:
   1. CameraCapture.read_frame()
   2. FaceDetector.detect()
@@ -21,8 +26,12 @@ Usage:
   python main.py --debug               # verbose output
 """
 
-import sys
+# ── macOS fix: must happen before ANY C-extension import ─────────────────────
 import os
+os.environ.setdefault("OBJC_DISABLE_INITIALIZE_FORK_SAFETY", "YES")
+# ─────────────────────────────────────────────────────────────────────────────
+
+import sys
 import time
 import argparse
 import threading
