@@ -5,12 +5,10 @@ Detects the driver's face and returns the full 468-landmark mesh.
 
 import cv2
 import numpy as np
-import mediapipe as mp
 import sys, os
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import config
-
 
 class FaceDetector:
     """
@@ -35,6 +33,10 @@ class FaceDetector:
             min_detection_confidence:   Minimum detection confidence.
             min_tracking_confidence:    Minimum tracking confidence.
         """
+        if not _MP_AVAILABLE:
+            self.face_mesh = None
+            return
+
         self._mp_face_mesh = mp.solutions.face_mesh
         self._mp_drawing = mp.solutions.drawing_utils
         self._mp_drawing_styles = mp.solutions.drawing_styles
@@ -67,8 +69,14 @@ class FaceDetector:
               bbox:      (x, y, w, h) pixel bounding box of the detected face,
                          or None if no face found.
         """
+        if self.face_mesh is None:
+            return None, None
+
         h, w = frame_rgb.shape[:2]
-        results = self.face_mesh.process(frame_rgb)
+        try:
+            results = self.face_mesh.process(frame_rgb)
+        except Exception:
+            return None, None
 
         if not results.multi_face_landmarks:
             return None, None
@@ -150,7 +158,8 @@ class FaceDetector:
 
     def release(self) -> None:
         """Clean up MediaPipe resources."""
-        self.face_mesh.close()
+        if self.face_mesh is not None:
+            self.face_mesh.close()
 
     def __enter__(self):
         return self

@@ -383,6 +383,13 @@ class DMSPipeline:
                     pass   # landmarks are already processed; keep display clean
 
                 display = frame_bgr.copy()
+                
+                # Show explicit error if mediapipe failed to load
+                if not payload["faceDetected"] and self.face_detector.face_mesh is None:
+                    cv2.putText(
+                        display, "MEDIAPIPE IMPORT FAILED - FACE DETECTION DISABLED",
+                        (20, H // 2), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 0, 255), 2
+                    )
                 draw_hud_overlay(
                     display,
                     ear=payload["ear"],
