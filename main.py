@@ -20,16 +20,28 @@ Pipeline per frame:
   10. cv2.imshow()                     → annotated camera feed
 
 Usage:
-  python main.py
-  python main.py --no-car-sim          # skip car simulation window
-  python main.py --no-cnn              # use EAR heuristic only
-  python main.py --debug               # verbose output
+  python3 main.py  OR  bash run.sh
+  python3 main.py --no-car-sim          # skip car simulation window
+  python3 main.py --no-cnn              # use EAR heuristic only
+  python3 main.py --debug               # verbose output
 """
 
-# ── macOS fix: must happen before ANY C-extension import ─────────────────────
-import os
-os.environ.setdefault("OBJC_DISABLE_INITIALIZE_FORK_SAFETY", "YES")
+# ── macOS self-relaunch fix ───────────────────────────────────────────────────
+# OBJC_DISABLE_INITIALIZE_FORK_SAFETY must be set in the environment BEFORE
+# Python loads any C-extension (cv2/mediapipe/torch). Setting os.environ inside
+# Python is too late — macOS has already initialised the ObjC runtime.
+# Solution: if the flag isn't in the shell env yet, re-exec this script via
+# subprocess (which inherits a fresh environment with the flag set).
+import os, sys
+
+_FLAG = "OBJC_DISABLE_INITIALIZE_FORK_SAFETY"
+if os.environ.get(_FLAG) != "YES":
+    import subprocess
+    env = {**os.environ, _FLAG: "YES"}
+    result = subprocess.run([sys.executable] + sys.argv, env=env)
+    sys.exit(result.returncode)
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 import sys
 import time
