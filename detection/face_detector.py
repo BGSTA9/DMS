@@ -33,7 +33,14 @@ class FaceDetector:
             min_detection_confidence:   Minimum detection confidence.
             min_tracking_confidence:    Minimum tracking confidence.
         """
-        if not _MP_AVAILABLE:
+        try:
+            import mediapipe as mp
+            self._mp_available = True
+        except ImportError as exc:
+            print(f"[FaceDetector] MediaPipe import failed ({exc}). Face detection disabled.")
+            self._mp_available = False
+
+        if not self._mp_available:
             self.face_mesh = None
             return
 
