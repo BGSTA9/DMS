@@ -43,7 +43,6 @@ if os.environ.get(_FLAG) != "YES":
 # ─────────────────────────────────────────────────────────────────────────────
 
 
-import sys
 import time
 import argparse
 import threading
