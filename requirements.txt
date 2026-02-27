@@ -1,0 +1,25 @@
+# ── Core Vision & ML ──────────────────────────────────────────────
+opencv-python==4.9.0.80
+mediapipe==0.10.11
+ultralytics==8.2.18
+torch==2.3.0
+torchvision==0.18.0
+
+# ── Deep Learning Utilities ───────────────────────────────────────
+timm==1.0.3                  # EfficientNet / MobileNet backbones
+deepface==0.0.93             # FER module (wraps several FER models)
+tf-keras==2.16.0             # Required by deepface
+
+# ── Scientific Computing ──────────────────────────────────────────
+numpy==1.26.4
+scipy==1.13.0                # Kalman filter math
+filterpy==1.4.5              # Clean Kalman filter implementation
+
+# ── UI & Simulation ───────────────────────────────────────────────
+pygame==2.5.2
+
+# ── Utilities ─────────────────────────────────────────────────────
+Pillow==10.3.0
+pyyaml==6.0.1
+tqdm==4.66.4
+imutils==0.5.4
