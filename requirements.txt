@@ -1,6 +1,6 @@
 # ── Core Vision & ML ──────────────────────────────────────────────
 opencv-python==4.9.0.80
-mediapipe==0.10.11
+mediapipe==0.10.14
 ultralytics==8.2.18
 torch==2.3.0
 torchvision==0.18.0
