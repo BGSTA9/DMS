@@ -66,7 +66,7 @@ def draw_analytics_hud(frame, state):
 
     # ── State badges ──────────────────────────────────────────────────────────
     def badge(text, bx, by, color):
-        tw, _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.65, 2)[0:2]
+        (tw, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.65, 2)
         cv2.rectangle(frame, (bx - 5, by - 22), (bx + tw + 5, by + 5), color, -1)
         cv2.putText(frame, text, (bx, by),
                     cv2.FONT_HERSHEY_SIMPLEX, 0.65, (0, 0, 0), 2, cv2.LINE_AA)
