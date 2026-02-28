@@ -47,6 +47,8 @@ class HeadPoseState:
     tvec: Optional[np.ndarray] = None
     # True if pose was successfully estimated this frame
     valid: bool = False
+    # Head zone classification (e.g., FRONT_WINDSHIELD, LEFT_MIRROR)
+    head_zone: str = "UNKNOWN"
 
 
 @dataclass
@@ -63,6 +65,8 @@ class GazeState:
     deviation: float  = 0.0
     # Where on screen the driver appears to be looking (pixel coords)
     gaze_point_px: Tuple[int, int] = (0, 0)
+    # Gaze zone classification (e.g., FRONT_WINDSHIELD, LEFT_MIRROR)
+    gaze_zone: str = "UNKNOWN"
 
 
 @dataclass

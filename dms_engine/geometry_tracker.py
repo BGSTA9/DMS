@@ -31,6 +31,7 @@ from config import (
     LEFT_IRIS_IDX, RIGHT_IRIS_IDX,
     EAR_BLINK_THRESHOLD, EAR_OPEN_BASELINE,
     BLINK_CONSEC_FRAMES,
+    EAR_CALIBRATION_FRAMES, GAZE_ZONE_MAP,
 )
 from dms_engine.data_structures import (
     GeometryState, EyeState, HeadPoseState, GazeState, BlinkState
@@ -263,6 +264,11 @@ class GeometryTracker:
         self._total_blinks: int  = 0
         self._blink_timestamps: collections.deque = collections.deque()  # rolling 1s window
 
+        # Adaptive EAR baseline calibration
+        self._calibration_samples: list = []
+        self._ear_baseline: float = EAR_OPEN_BASELINE   # fallback
+        self._calibrated: bool = False
+
         # Previous frame state for continuity
         self._last_state = GeometryState()
 
@@ -338,6 +344,25 @@ class GeometryTracker:
 
         # ── Gaze ──────────────────────────────────────────────────────────────
         state.gaze = self._compute_gaze_state(lm_px)
+
+        # ── Zone Classification ───────────────────────────────────────────────
+        if state.head_pose.valid:
+            state.head_pose.head_zone = self._classify_zone(
+                state.head_pose.yaw, state.head_pose.pitch
+            )
+            # Gaze zone combines head pose + gaze offset
+            gaze_yaw   = state.head_pose.yaw + state.gaze.horizontal * 30.0
+            gaze_pitch = state.head_pose.pitch + state.gaze.vertical * 20.0
+            state.gaze.gaze_zone = self._classify_zone(gaze_yaw, gaze_pitch)
+
+        # ── Adaptive EAR Calibration ──────────────────────────────────────────
+        if not self._calibrated:
+            if mean_ear > 0.28:   # likely open eyes
+                self._calibration_samples.append(mean_ear)
+            if len(self._calibration_samples) >= EAR_CALIBRATION_FRAMES:
+                self._ear_baseline = float(np.median(self._calibration_samples))
+                self._calibrated = True
+                log.info(f"Adaptive EAR baseline calibrated: {self._ear_baseline:.4f}")
 
         self._last_state = state
         return state
@@ -440,6 +465,24 @@ class GeometryTracker:
             deviation=deviation,
             gaze_point_px=(gaze_px_x, gaze_px_y),
         )
+
+    @staticmethod
+    def _classify_zone(yaw: float, pitch: float) -> str:
+        """
+        Classify head/gaze direction into a named zone using angle thresholds.
+        Returns the zone name or 'UNKNOWN' if no zone matches.
+        """
+        for zone_name, bounds in GAZE_ZONE_MAP.items():
+            yaw_lo, yaw_hi = bounds["yaw"]
+            pit_lo, pit_hi = bounds["pitch"]
+            if yaw_lo <= yaw <= yaw_hi and pit_lo <= pitch <= pit_hi:
+                return zone_name
+        return "UNKNOWN"
+
+    @property
+    def ear_baseline(self) -> float:
+        """Return the calibrated EAR baseline (adaptive or default)."""
+        return self._ear_baseline
 
     def release(self) -> None:
         """Release MediaPipe resources."""

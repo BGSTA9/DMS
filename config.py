@@ -69,13 +69,13 @@ LEFT_EYE_EAR_IDX        = [362, 385, 387, 263, 373, 380]
 # Right eye
 RIGHT_EYE_EAR_IDX       = [33,  160, 158,  133, 153, 144]
 
-EAR_BLINK_THRESHOLD     = 0.21    # Below this → eye considered closed
+EAR_BLINK_THRESHOLD     = 0.18    # Below this → eye considered closed (tuned down from 0.21)
 EAR_OPEN_BASELINE       = 0.35    # Typical open-eye EAR (for percentile calc)
 BLINK_CONSEC_FRAMES     = 2       # Frames below threshold to count as blink
 
 # ── Drowsiness ────────────────────────────────────────────────────────────────
 PERCLOS_WINDOW_FRAMES   = 90      # ~3 seconds at 30fps
-DROWSY_EAR_THRESHOLD    = 0.25    # EAR below this counts toward PERCLOS
+DROWSY_EAR_THRESHOLD    = 0.20    # EAR below this counts toward PERCLOS (tuned down from 0.25)
 DROWSY_PERCLOS_THRESH   = 0.20    # >20% eye closure in window → DROWSY warning
 SLEEPING_PERCLOS_THRESH = 0.40    # >40% → SLEEPING state
 DROWSY_SCORE_WEIGHTS    = {
@@ -100,7 +100,7 @@ DISTRACTION_SCORE_WEIGHTS = {
 
 # ── State Machine ─────────────────────────────────────────────────────────────
 # Hysteresis: require N consecutive frames to confirm a state transition
-STATE_CONFIRM_FRAMES    = 15      # ~0.5s at 30fps
+STATE_CONFIRM_FRAMES    = 20      # ~0.67s at 30fps (increased for stability)
 ALERT_LEVEL_THRESHOLDS  = {
     "ALERT":        (0.0,  0.40),
     "DROWSY":       (0.40, 0.70),
@@ -108,8 +108,8 @@ ALERT_LEVEL_THRESHOLDS  = {
 }
 
 # ── Kalman Filter ─────────────────────────────────────────────────────────────
-KALMAN_PROCESS_NOISE    = 1e-3
-KALMAN_MEASUREMENT_NOISE= 1e-1
+KALMAN_PROCESS_NOISE    = 5e-4    # Smoother state transitions (was 1e-3)
+KALMAN_MEASUREMENT_NOISE= 2e-1    # Trust raw measurements less (was 1e-1)
 
 # ── Deep Learning Inference ───────────────────────────────────────────────────
 YOLO_MODEL_PATH         = os.path.join(MODELS_DIR, "yolov8n.pt")
@@ -139,3 +139,30 @@ CAR_DROWSY_SPEED        = 1.5
 CAR_PULLOVER_SPEED      = 0.5
 ROAD_SCROLL_SPEED       = CAR_NORMAL_SPEED
 ALARM_SOUND_PATH        = os.path.join(ASSETS_DIR, "alarm.wav")
+
+# NPC traffic
+NPC_SPAWN_INTERVAL      = (2.0, 5.0)   # seconds min/max between spawns
+NPC_MIN_SPEED           = 2.0           # pixels/frame
+NPC_MAX_SPEED           = 5.0           # pixels/frame
+NPC_MAX_CARS            = 3             # max simultaneous NPCs
+
+# Physics model
+CAR_ACCELERATION        = 0.06          # speed change per frame (accel)
+CAR_DECELERATION        = 0.03          # speed change per frame (decel)
+PULLOVER_DURATION_SEC   = 3.0           # S-curve pull-over duration
+
+# Analytics smoothing
+DROWSINESS_EMA_ALPHA    = 0.15          # EMA factor for drowsiness score
+DISTRACTION_EMA_ALPHA   = 0.15          # EMA factor for distraction score
+EAR_CALIBRATION_FRAMES  = 60            # Frames for adaptive EAR baseline (~2s)
+
+# Gaze / Head zone thresholds (degrees)
+GAZE_ZONE_MAP           = {
+    "FRONT_WINDSHIELD": {"yaw": (-15, 15),  "pitch": (-10, 10)},
+    "LEFT_MIRROR":      {"yaw": (-60, -15), "pitch": (-15, 10)},
+    "RIGHT_MIRROR":     {"yaw": (15, 60),   "pitch": (-15, 10)},
+    "CENTER_CONSOLE":   {"yaw": (-15, 15),  "pitch": (-40, -10)},
+    "REARVIEW_MIRROR":  {"yaw": (-10, 10),  "pitch": (10, 30)},
+    "LEFT_WINDOW":      {"yaw": (-90, -60), "pitch": (-20, 20)},
+    "RIGHT_WINDOW":     {"yaw": (60, 90),   "pitch": (-20, 20)},
+}

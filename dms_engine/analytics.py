@@ -39,6 +39,7 @@ from config import (
     DROWSY_SCORE_WEIGHTS, DISTRACTION_SCORE_WEIGHTS,
     YAW_DISTRACT_THRESH, PITCH_DISTRACT_THRESH, GAZE_DISTRACT_THRESH,
     ACTION_CLASSES,
+    DROWSINESS_EMA_ALPHA, DISTRACTION_EMA_ALPHA,
 )
 from dms_engine.data_structures import (
     GeometryState, DetectionState, ActionState, FERState
@@ -74,6 +75,10 @@ class AnalyticsEngine:
     Maintains a rolling window of EAR values for PERCLOS computation.
     All outputs are in [0.0, 1.0].
 
+    EMA smoothing is applied to both drowsiness and distraction scores
+    to eliminate frame-to-frame jitter from noisy measurements:
+        score_ema = α * raw_score + (1−α) * prev_score
+
     Usage:
         engine = AnalyticsEngine()
         drowsiness, distraction, perclos = engine.update(geo, det, act, fer)
@@ -89,6 +94,11 @@ class AnalyticsEngine:
             self._ear_window.append(False)
 
         self._frame_count = 0
+
+        # EMA state for temporal smoothing
+        self._drowsiness_ema: float = 0.0
+        self._distraction_ema: float = 0.0
+
         log.info("AnalyticsEngine initialized.")
 
     # ── Public API ────────────────────────────────────────────────────────────
@@ -113,11 +123,17 @@ class AnalyticsEngine:
             # No face → cannot compute; return last safe defaults
             return 0.0, 0.0, 0.0
 
-        drowsiness  = self._compute_drowsiness(geo)
-        distraction = self._compute_distraction(geo, act)
-        perclos     = self._compute_perclos(geo)
+        raw_drowsiness  = self._compute_drowsiness(geo)
+        raw_distraction = self._compute_distraction(geo, act)
+        perclos         = self._compute_perclos(geo)
 
-        return drowsiness, distraction, perclos
+        # Apply EMA smoothing to suppress jitter
+        self._drowsiness_ema  = (DROWSINESS_EMA_ALPHA * raw_drowsiness
+                                 + (1.0 - DROWSINESS_EMA_ALPHA) * self._drowsiness_ema)
+        self._distraction_ema = (DISTRACTION_EMA_ALPHA * raw_distraction
+                                 + (1.0 - DISTRACTION_EMA_ALPHA) * self._distraction_ema)
+
+        return self._drowsiness_ema, self._distraction_ema, perclos
 
     # ── PERCLOS ───────────────────────────────────────────────────────────────
 
