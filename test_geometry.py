@@ -38,7 +38,7 @@ def draw_hud(frame, state):
     gz = state.gaze
     bk = state.blink
 
-    put(f"Face Detected: YES")
+    put(f"Face Detected: YES", 0)
     put(f"Yaw:   {hp.yaw:+6.1f} deg",    1)
     put(f"Pitch: {hp.pitch:+6.1f} deg",  2)
     put(f"Roll:  {hp.roll:+6.1f} deg",   3)
