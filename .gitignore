@@ -208,3 +208,8 @@ __marimo__/
 
 # Markdowns
 *.md
+docs/
+DMS_Enterprise_Upgrade_Walkthrough.md
+DMS_Enterprise_Upgrade_Walkthrough_Diffs.pdf
+DMS_Enterprise_Upgrade_Implementation_Plan.pdf
+generate_implementation_pdf.js
