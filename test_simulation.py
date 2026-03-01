@@ -49,29 +49,35 @@ def main():
     print("[test_simulation] Running …\n")
 
     while True:
-        # ── Events ────────────────────────────────────────────────────────────
-        if ui.handle_events():
-            break
-
-        # Keyboard overrides (KEYDOWN events)
+        # ── Events (single pass — do NOT call ui.handle_events separately) ────
+        quit_requested = False
         for event in pygame.event.get():
-            if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_1: override_state = "ALERT"
-                if event.key == pygame.K_2: override_state = "DROWSY"
-                if event.key == pygame.K_3: override_state = "SLEEPING"
-                if event.key == pygame.K_r:
+            # Quit events
+            if event.type == pygame.QUIT:
+                quit_requested = True
+            elif event.type == pygame.KEYDOWN:
+                if event.key in (pygame.K_q, pygame.K_ESCAPE):
+                    quit_requested = True
+                elif event.key == pygame.K_1:
+                    override_state = "ALERT"
+                elif event.key == pygame.K_2:
+                    override_state = "DROWSY"
+                elif event.key == pygame.K_3:
+                    override_state = "SLEEPING"
+                elif event.key == pygame.K_r:
                     sim.reset()
                     override_state = None
                     print("[test_simulation] Simulation reset.")
             elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
-                # Translate screen coords to sim panel coords
-                # Sim panel is the bottom half of the window
                 mx, my = event.pos
-                sim_panel_y = CAMERA_HEIGHT  # top of sim panel
+                sim_panel_y = CAMERA_HEIGHT
                 if my >= sim_panel_y:
                     if sim.handle_click(mx, my - sim_panel_y):
                         override_state = None
                         print("[test_simulation] Simulation reset (button).")
+
+        if quit_requested:
+            break
 
         # ── Continuous key state (arrow keys for driving) ─────────────────────
         keys = pygame.key.get_pressed()

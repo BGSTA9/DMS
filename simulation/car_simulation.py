@@ -497,8 +497,8 @@ class SimulationManager:
         elif keys.get("right", False):
             v.set_steer(v.steer_angle + MANUAL_STEER_RATE)
         else:
-            # Self-centering steering
-            v.set_steer(v.steer_angle * 0.85)
+            # Self-centering steering (aggressive return to straight)
+            v.set_steer(v.steer_angle * 0.70)
 
         # Distraction swerve (subtle)
         if distraction_score > 0.4:

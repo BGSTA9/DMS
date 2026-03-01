@@ -140,6 +140,8 @@ class Vehicle:
             self.speed = 0.0
             self.vx = 0.0
             self.vy = 0.0
+            # Heading still damps toward 0 even when stopped
+            self.heading *= 0.90
             return
 
         # Clamp speed
@@ -152,11 +154,19 @@ class Vehicle:
         heading_rate = (self.speed / CAR_WHEELBASE) * math.tan(delta_rad)
         self.heading += heading_rate
 
+        # Heading damping: naturally return toward straight (0)
+        # This prevents heading from accumulating when steering is released
+        self.heading *= 0.92
+
+        # Clamp heading so car can't spin (max ±30°)
+        max_heading = math.radians(30.0)
+        self.heading = max(-max_heading, min(max_heading, self.heading))
+
         # Velocity components (screen coords: heading 0 = up = -y)
         self.vx =  self.speed * math.sin(self.heading)
         self.vy = -self.speed * math.cos(self.heading)
 
-        # Position update
+        # Position update — only X is meaningful (Y is pinned by SimulationManager)
         self.x += self.vx
         self.y += self.vy
 
