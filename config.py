@@ -151,6 +151,27 @@ CAR_ACCELERATION        = 0.06          # speed change per frame (accel)
 CAR_DECELERATION        = 0.03          # speed change per frame (decel)
 PULLOVER_DURATION_SEC   = 3.0           # S-curve pull-over duration
 
+# Bicycle model
+CAR_WHEELBASE           = 48.0          # pixels, distance between axles
+CAR_MAX_STEER_ANGLE     = 35.0          # degrees, max front wheel deflection
+CAR_MAX_SPEED           = 5.0           # px/frame cap
+
+# PID lateral controller (autopilot steering)
+PID_KP                  = 2.5           # proportional gain
+PID_KI                  = 0.05          # integral gain
+PID_KD                  = 0.8           # derivative gain
+
+# Pull-over braking
+PULLOVER_DECEL_K        = 1.2           # exponential decay constant v(t) = v0*e^(-kt)
+
+# Lane merge safety
+MERGE_SAFE_GAP_PX       = 100           # min gap (px) in target lane to begin merge
+
+# Manual mode control
+MANUAL_ACCEL            = 0.08          # px/frame² acceleration from arrow keys
+MANUAL_BRAKE            = 0.10          # px/frame² braking
+MANUAL_STEER_RATE       = 2.5           # degrees/frame steering from arrow keys
+
 # Analytics smoothing
 DROWSINESS_EMA_ALPHA    = 0.15          # EMA factor for drowsiness score
 DISTRACTION_EMA_ALPHA   = 0.15          # EMA factor for distraction score

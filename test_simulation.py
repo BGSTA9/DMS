@@ -3,11 +3,13 @@
 # Run: python test_simulation.py
 # Press Q / ESC to quit.
 #
-# Keyboard controls for manual testing (no webcam needed for sim testing):
-#   1 → Force ALERT state
-#   2 → Force DROWSY state
-#   3 → Force SLEEPING state (triggers pull-over)
-#   R → Reset simulation
+# Keyboard controls:
+#   ↑ / ↓       — Accelerate / Brake  (MANUAL mode only)
+#   ← / →       — Steer left / right  (MANUAL mode only)
+#   1           — Force ALERT state
+#   2           — Force DROWSY state
+#   3           — Force SLEEPING state (triggers auto pull-over)
+#   R           — Reset simulation
 # =============================================================================
 
 import cv2
@@ -23,7 +25,9 @@ from config import (
 
 def main():
     print("\n[test_simulation] Initializing …\n")
-    print("  Keyboard: 1=ALERT  2=DROWSY  3=SLEEPING  R=Reset\n")
+    print("  Controls:")
+    print("    Arrow keys  = Drive (accel / brake / steer)")
+    print("    1 = ALERT   2 = DROWSY   3 = SLEEPING   R = Reset\n")
 
     # ── Camera ────────────────────────────────────────────────────────────────
     cap = cv2.VideoCapture(CAMERA_INDEX)
@@ -49,8 +53,7 @@ def main():
         if ui.handle_events():
             break
 
-        # Keyboard overrides
-        keys = pygame.key.get_pressed()
+        # Keyboard overrides (KEYDOWN events)
         for event in pygame.event.get():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_1: override_state = "ALERT"
@@ -60,6 +63,15 @@ def main():
                     sim.reset()
                     override_state = None
                     print("[test_simulation] Simulation reset.")
+
+        # ── Continuous key state (arrow keys for driving) ─────────────────────
+        keys = pygame.key.get_pressed()
+        keys_pressed = {
+            "up":    keys[pygame.K_UP],
+            "down":  keys[pygame.K_DOWN],
+            "left":  keys[pygame.K_LEFT],
+            "right": keys[pygame.K_RIGHT],
+        }
 
         # ── Capture ───────────────────────────────────────────────────────────
         ret, frame = cap.read()
@@ -78,6 +90,7 @@ def main():
             driver_state=effective_driver_state,
             drowsiness_score=state.drowsiness_score,
             distraction_score=state.distraction_score,
+            keys_pressed=keys_pressed,
         )
 
         # ── Render ────────────────────────────────────────────────────────────
