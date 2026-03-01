@@ -344,6 +344,10 @@ class SimulationManager:
         self._font_sm = pygame.font.SysFont("monospace", 13)
         self._font_md = pygame.font.SysFont("monospace", 16, bold=True)
 
+        # Restart button rect (top-right area, rendered in sim panel coords)
+        self._restart_btn = pygame.Rect(self.w - 110, self.h - 34, 100, 26)
+        self._restart_hover = False
+
     # ── Public API ────────────────────────────────────────────────────────────
 
     def update(
@@ -416,6 +420,21 @@ class SimulationManager:
         self._pullover_stage = PullOverStage.NONE
         self._stage_timer = 0
         self._traffic.reset()
+
+    def handle_click(self, x: int, y: int) -> bool:
+        """
+        Handle a mouse click within the sim panel.
+
+        Args:
+            x, y: click position relative to the sim panel's top-left corner
+
+        Returns:
+            True if the restart button was clicked.
+        """
+        if self._restart_btn.collidepoint(x, y):
+            self.reset()
+            return True
+        return False
 
     # ── Control Arbiter ──────────────────────────────────────────────────────
 
@@ -636,3 +655,13 @@ class SimulationManager:
         if self._control_mode == ControlMode.AUTO_PULLOVER:
             lock_surf = self._font_sm.render("🔒 INPUT LOCKED", True, (255, 80, 80))
             surf.blit(lock_surf, (self.w - lock_surf.get_width() - 12, 30))
+
+        # ── Restart Button ────────────────────────────────────────────────────
+        btn = self._restart_btn
+        btn_color = (60, 180, 100) if self._restart_hover else (50, 130, 80)
+        border_col = (100, 220, 140)
+        pygame.draw.rect(surf, btn_color, btn, border_radius=6)
+        pygame.draw.rect(surf, border_col, btn, width=2, border_radius=6)
+        btn_text = self._font_md.render("⟳ RESTART", True, C_WHITE)
+        surf.blit(btn_text, (btn.x + btn.w // 2 - btn_text.get_width() // 2,
+                             btn.y + btn.h // 2 - btn_text.get_height() // 2))

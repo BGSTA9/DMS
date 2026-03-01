@@ -63,6 +63,15 @@ def main():
                     sim.reset()
                     override_state = None
                     print("[test_simulation] Simulation reset.")
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                # Translate screen coords to sim panel coords
+                # Sim panel is the bottom half of the window
+                mx, my = event.pos
+                sim_panel_y = CAMERA_HEIGHT  # top of sim panel
+                if my >= sim_panel_y:
+                    if sim.handle_click(mx, my - sim_panel_y):
+                        override_state = None
+                        print("[test_simulation] Simulation reset (button).")
 
         # ── Continuous key state (arrow keys for driving) ─────────────────────
         keys = pygame.key.get_pressed()
