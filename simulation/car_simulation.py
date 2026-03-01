@@ -177,46 +177,57 @@ class Car:
         self._target_x = start_x
         self._home_x   = start_x
 
-        # Speed (pixels / frame of road scroll)
-        self.speed        = CAR_NORMAL_SPEED
-        self._target_speed = CAR_NORMAL_SPEED
+        # Control & Physics State
+        self.control_mode = "MANUAL" # "MANUAL" | "AUTO_PULLOVER"
+        self.state = "DRIVING"       # DRIVING | SLOWING | PULLING_OVER | STOPPED
+        
+        self.speed        = 0.0      # Forward velocity v
+        self.heading      = 0.0      # Theta (radians), 0 is straight UP screen
+        self.steer_angle  = 0.0      # Delta (degrees), steering wheel angle
+        
+        # Vehicle Specs
+        self.wheelbase    = 40.0
+        self.max_speed    = CAR_NORMAL_SPEED * 1.5
+        self.max_steer    = 30.0     # Max steering angle in degrees
+        self.accel_rate   = 0.08
+        self.brake_rate   = 0.15
+        
+        # Signals
+        self.turn_signal  = "NONE"   # "NONE" | "RIGHT" | "HAZARD"
+        self._signal_tick = 0
+        self._signal_on   = False
+        self._signal_period = 15     # frames per half-cycle
 
-        # State
-        self.state = "DRIVING"   # DRIVING | SLOWING | PULLING_OVER | STOPPED
-
-        # Hazard light state
-        self._hazard_tick  = 0
-        self._hazard_left  = False   # True when left hazard is lit this tick
-        self._hazard_period = 18     # frames per half-cycle (~0.5s at 30fps)
-
-        # Steering angle for visual tilt during pull-over (degrees)
-        self.steer_angle = 0.0
-
-        # Pull-over S-curve progress (0→1)
-        self._pullover_progress = 0.0
-        self._pullover_start_x  = start_x
-
-        # Timestamp for pull-over initiation
+        # Pull-over protocol state
         self._pullover_start_t = None
-        self._pullover_start_speed = CAR_NORMAL_SPEED
+        self._pullover_v0 = 0.0
+        self._pullover_decay = 0.5   # k in v = v0 * e^(-kt)
+        self._safe_to_merge = False
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def update(self, driver_state: str, road_right_edge: float) -> float:
+    def update(self, driver_state: str, road_right_edge: float, keys: tuple, npcs: list) -> float:
         """
-        Update car physics for one frame.
+        Update car physics for one frame using Bicycle Model.
 
         Args:
             driver_state:    "ALERT" | "DROWSY" | "SLEEPING"
-            road_right_edge: X pixel of the road's right edge (for pull-over target)
+            road_right_edge: X pixel of the road's right edge
+            keys:            pygame.key.get_pressed() state
+            npcs:            List of active NPCCar instances
 
         Returns:
-            Current road scroll speed (pass to RoadRenderer.scroll())
+            Forward velocity (v) passed to RoadRenderer.scroll()
         """
-        self._update_state_machine(driver_state, road_right_edge)
-        self._update_speed()
-        self._update_position()
-        self._update_hazards()
+        self._update_state_machine(driver_state, road_right_edge, npcs)
+        
+        if self.control_mode == "MANUAL":
+            self._process_manual_inputs(keys)
+        else:
+            self._process_autonomous_control(road_right_edge)
+            
+        self._apply_bicycle_kinematics()
+        self._update_signals()
 
         return self.speed
 
@@ -233,110 +244,133 @@ class Car:
         rect = car_surf.get_rect(center=(cx, cy))
         surf.blit(car_surf, rect)
 
-        # Hazard flash overlay (full-screen tint when hazards active)
-        if self.state == "STOPPED" and self._hazard_left:
+        # Vector Tip Visualization
+        # Velocity vector (Green)
+        v_len = self.speed * 10
+        vx = math.sin(self.heading) * v_len
+        vy = -math.cos(self.heading) * v_len
+        
+        if v_len > 1.0:
+            pygame.draw.line(surf, (0, 255, 0), (cx, cy), (cx + vx, cy + vy), 2)
+            pygame.draw.circle(surf, (0, 255, 0), (int(cx + vx), int(cy + vy)), 3)
+
+        # Hazard/Signal flash overlay tint
+        if self.turn_signal == "HAZARD" and self._signal_on:
             overlay = pygame.Surface((surf.get_width(), surf.get_height()), pygame.SRCALPHA)
-            overlay.fill((255, 160, 0, 18))
+            overlay.fill((255, 160, 0, 15))
             surf.blit(overlay, (0, 0))
 
     # ── State Machine ─────────────────────────────────────────────────────────
 
-    def _update_state_machine(self, driver_state: str, road_right_edge: float):
-        if driver_state == "SLEEPING":
-            if self.state not in ("PULLING_OVER", "STOPPED"):
-                self.state = "PULLING_OVER"
-                self._pullover_start_t = time.time()
-                self._pullover_start_x = self.x
-                self._pullover_start_speed = self.speed
-                # Target: shoulder position (right edge of road + 40px)
-                self._target_x = road_right_edge - CAR_W // 2 - 10
-                self._target_speed = 0.0
-                self._pullover_progress = 0.0
-
-        elif driver_state == "DROWSY":
-            if self.state == "DRIVING":
-                self.state = "SLOWING"
-                self._target_speed = CAR_DROWSY_SPEED
-
-        elif driver_state == "ALERT":
-            if self.state in ("SLOWING",):
-                self.state = "DRIVING"
-                self._target_speed = CAR_NORMAL_SPEED
-                self._target_x     = self._home_x
-            # Note: once STOPPED, car stays stopped until manual reset
+    def _update_state_machine(self, driver_state: str, road_right_edge: float, npcs: list):
+        if driver_state == "SLEEPING" and self.control_mode != "AUTO_PULLOVER":
+            self.control_mode = "AUTO_PULLOVER"
+            self.state = "PULLING_OVER"
+            self._pullover_start_t = time.time()
+            self._pullover_v0 = max(1.0, self.speed) # Avoid decaying from 0
+            self._target_x = road_right_edge - CAR_W // 2 - 10
+            self.turn_signal = "RIGHT"
+            self._safe_to_merge = False
 
         # Transition PULLING_OVER → STOPPED once speed is near zero
         if self.state == "PULLING_OVER":
-            if abs(self.x - self._target_x) < 4 and self.speed < 0.3:
+            # Check local collision
+            self._safe_to_merge = self._check_safe_to_merge(npcs)
+            
+            if abs(self.x - self._target_x) < 5 and self.speed < 0.2:
                 self.state = "STOPPED"
                 self.speed = 0.0
-                self._target_speed = 0.0
                 self.steer_angle = 0.0
+                self.turn_signal = "HAZARD"
 
-    def _update_speed(self):
-        """Physics-based acceleration/deceleration toward target speed."""
-        if self.state == "PULLING_OVER":
-            return
+    def _check_safe_to_merge(self, npcs: list) -> bool:
+        """Scan right lane for occupying vehicles within a Y-buffer."""
+        buffer_y = 120 # Safe distance front and back
+        for npc in npcs:
+            # If NPC is in the right lane (x > center)
+            if npc.x > self._home_x:
+                dist_y = abs(npc.y - self.y)
+                if dist_y < buffer_y:
+                    return False
+        return True
 
-        diff = self._target_speed - self.speed
-        if abs(diff) < 0.01:
-            self.speed = self._target_speed
-            return
-
-        if diff > 0:
-            # Accelerating
-            self.speed += min(diff, CAR_ACCELERATION)
+    def _process_manual_inputs(self, keys: tuple):
+        """Map arrow keys to throttle, brake, and steering."""
+        if keys[pygame.K_UP]:
+            self.speed = min(self.max_speed, self.speed + self.accel_rate)
+        elif keys[pygame.K_DOWN]:
+            self.speed = max(0.0, self.speed - self.brake_rate)
         else:
-            # Decelerating
-            self.speed += max(diff, -CAR_DECELERATION)
+            # Coasting friction
+            self.speed = max(0.0, self.speed - 0.02)
+            
+        if keys[pygame.K_LEFT]:
+            self.steer_angle = max(-self.max_steer, self.steer_angle - 3.0)
+        elif keys[pygame.K_RIGHT]:
+            self.steer_angle = min(self.max_steer, self.steer_angle + 3.0)
+        else:
+            # Auto-center steering
+            if self.steer_angle > 0:
+                self.steer_angle = max(0.0, self.steer_angle - 4.0)
+            elif self.steer_angle < 0:
+                self.steer_angle = min(0.0, self.steer_angle + 4.0)
 
-    def _update_position(self):
-        """
-        Move car toward target X using S-curve (sigmoid) for pull-over.
-        Produces a smooth, realistic lateral trajectory.
-        """
-        if self.state == "PULLING_OVER" and self._pullover_start_t is not None:
-            elapsed = time.time() - self._pullover_start_t
-            t_norm = min(1.0, elapsed / PULLOVER_DURATION_SEC)
-            
-            # Smoothstep: p(t) = 3t^2 - 2t^3
-            p = t_norm * t_norm * (3.0 - 2.0 * t_norm)
-            self._pullover_progress = p
-
-            total_dx = self._target_x - self._pullover_start_x
-            
-            # Update X
-            old_x = self.x
-            self.x = self._pullover_start_x + total_dx * p
-            
-            # Longitudinal velocity (cosine ease-out)
-            self.speed = self._pullover_start_speed * math.cos(t_norm * math.pi / 2.0)
-            
-            # Steering angle: theta = arctan(v_lat / v_lon)
-            dx_per_frame = self.x - old_x
-            v_lon = max(0.01, self.speed)
-            theta = math.degrees(math.atan2(dx_per_frame, v_lon))
-            
-            self.steer_angle = max(-30.0, min(30.0, theta))
-        elif self.state not in ("PULLING_OVER", "STOPPED"):
-            # Move back to home X if not pulling over
-            dx = self._target_x - self.x
-            if abs(dx) > 1.0:
-                step = dx * 0.025
-                self.x += step
-                self.steer_angle = max(-18.0, min(18.0, step * 2.5))
-            else:
-                self.steer_angle *= 0.85   # straighten out
-
-    def _update_hazards(self):
+    def _process_autonomous_control(self, road_right_edge: float):
+        """PID Path Planner and Exponential Braking."""
         if self.state == "STOPPED":
-            self._hazard_tick += 1
-            if self._hazard_tick >= self._hazard_period:
-                self._hazard_tick = 0
-                self._hazard_left = not self._hazard_left
+            return
+            
+        if not self._safe_to_merge:
+            # Maintain lane, maintain current speed (or slight slow down)
+            error_x = self._home_x - self.x
+            self.speed = max(2.0, self.speed - 0.01)
         else:
-            self._hazard_left = False
-            self._hazard_tick = 0
+            # PID to shoulder
+            error_x = self._target_x - self.x
+            
+            # Exponential decay: v(t) = v0 * e^(-kt)
+            elapsed = time.time() - self._pullover_start_t
+            self.speed = self._pullover_v0 * math.exp(-self._pullover_decay * elapsed)
+            
+        # P-Controller for steering (Kp = 0.8)
+        kp = 0.8
+        target_steer = error_x * kp
+        
+        # Smooth steering application
+        diff = target_steer - self.steer_angle
+        self.steer_angle += max(-2.0, min(2.0, diff))
+        self.steer_angle = max(-self.max_steer, min(self.max_steer, self.steer_angle))
+
+    def _apply_bicycle_kinematics(self):
+        """Apply x, y, theta updates based on speed and steer_angle."""
+        if self.speed < 0.01:
+            return
+            
+        # Convert steer angle to radians
+        delta = math.radians(self.steer_angle)
+        
+        # Bicycle model update
+        # dot_theta = (v / L) * tan(delta)
+        dot_theta = (self.speed / self.wheelbase) * math.tan(delta)
+        self.heading += dot_theta
+        
+        # dot_x = v * sin(theta) (since 0 heading is UP screen)
+        # dot_y = -v * cos(theta) (negative because screen Y is flipped)
+        # We only apply lateral movement visually (car doesn't move Y on screen)
+        self.x += self.speed * math.sin(self.heading)
+        
+        # Cap heading to prevent spinning out visually in weird states
+        self.heading = max(-math.pi/3, min(math.pi/3, self.heading))
+
+    def _update_signals(self):
+        if self.turn_signal != "NONE":
+            self._signal_tick += 1
+            if self._signal_tick >= self._signal_period:
+                self._signal_tick = 0
+                self._signal_on = not self._signal_on
+        else:
+            self._signal_on = False
+            self._signal_tick = 0
 
     # ── Drawing ───────────────────────────────────────────────────────────────
 
@@ -385,14 +419,16 @@ class Car:
         pygame.draw.rect(surf, C_TAILLIGHT, (ox + 4,     tl_y, 9,  5), border_radius=2)
         pygame.draw.rect(surf, C_TAILLIGHT, (ox + w - 13, tl_y, 9,  5), border_radius=2)
 
-        # ── Hazard lights (replace tail/head lights when active) ──────────────
-        if self.state == "STOPPED":
-            h_col = C_HAZARD_ON if self._hazard_left else C_HAZARD_OFF
-            pygame.draw.rect(surf, h_col, (ox + 4,     tl_y, 9, 5), border_radius=2)
-            pygame.draw.rect(surf, h_col, (ox + 4,     hl_y, 9, 5), border_radius=2)
-            h_col2 = C_HAZARD_ON if not self._hazard_left else C_HAZARD_OFF
-            pygame.draw.rect(surf, h_col2, (ox + w - 13, tl_y, 9, 5), border_radius=2)
-            pygame.draw.rect(surf, h_col2, (ox + w - 13, hl_y, 9, 5), border_radius=2)
+        # ── Hazard / Turn signals ─────────────────────────────────────────────
+        if self.turn_signal != "NONE" and self._signal_on:
+            if self.turn_signal == "HAZARD":
+                pygame.draw.rect(surf, C_HAZARD_ON, (ox + 4,     tl_y, 9, 5), border_radius=2)
+                pygame.draw.rect(surf, C_HAZARD_ON, (ox + 4,     hl_y, 9, 5), border_radius=2)
+                pygame.draw.rect(surf, C_HAZARD_ON, (ox + w - 13, tl_y, 9, 5), border_radius=2)
+                pygame.draw.rect(surf, C_HAZARD_ON, (ox + w - 13, hl_y, 9, 5), border_radius=2)
+            elif self.turn_signal == "RIGHT":
+                pygame.draw.rect(surf, C_HAZARD_ON, (ox + w - 13, tl_y, 9, 5), border_radius=2)
+                pygame.draw.rect(surf, C_HAZARD_ON, (ox + w - 13, hl_y, 9, 5), border_radius=2)
 
         return surf
 
@@ -491,6 +527,7 @@ class SimulationManager:
         driver_state:     str   = "ALERT",
         drowsiness_score: float = 0.0,
         distraction_score:float = 0.0,
+        keys:             tuple = None,
     ) -> pygame.Surface:
         """
         Advance simulation one frame and return the rendered surface.
@@ -499,12 +536,16 @@ class SimulationManager:
             driver_state:      "ALERT" | "DROWSY" | "SLEEPING"
             drowsiness_score:  0–1 (used for speed shading)
             distraction_score: 0–1 (used for minor swerve effect)
+            keys:              pygame.key.get_pressed()
 
         Returns:
             pygame.Surface (width × height) ready to blit
         """
+        if keys is None:
+            keys = pygame.key.get_pressed()
+            
         # ── Update car physics ────────────────────────────────────────────────
-        scroll_speed = self._car.update(driver_state, self._road_right_edge)
+        scroll_speed = self._car.update(driver_state, self._road_right_edge, keys, self._traffic._npcs)
 
         # ── Distraction swerve: subtle sinusoidal drift ───────────────────────
         if distraction_score > 0.4 and self._car.state == "DRIVING":
@@ -563,7 +604,7 @@ class SimulationManager:
         st_surf = self._font_sm.render(state_str, True, (160, 160, 180))
         surf.blit(st_surf, (12, 10))
 
-        # STOPPED banner
+        # STOPPED / AUTO OVERRIDE banners
         if self._car.state == "STOPPED":
             font_lg = pygame.font.SysFont("monospace", 24, bold=True)
             msg = font_lg.render("VEHICLE STOPPED — HAZARDS ON", True, C_HAZARD_ON)
@@ -573,17 +614,20 @@ class SimulationManager:
             surf.blit(bg,  (bx - 10, self.h - 44))
             surf.blit(msg, (bx,      self.h - 40))
 
-        # Drowsiness speed warning
-        elif self._car.state == "SLOWING":
-            warn = self._font_md.render("⚠ REDUCING SPEED", True, (255, 180, 0))
-            surf.blit(warn, (self.w // 2 - warn.get_width() // 2, self.h - 36))
-
         # PULLING OVER banner
-        elif self._car.state == "PULLING_OVER":
+        elif self._car.control_mode == "AUTO_PULLOVER":
             font_lg = pygame.font.SysFont("monospace", 24, bold=True)
-            msg = font_lg.render("PULLING OVER — DRIVER ASLEEP", True, (220, 40, 40))
+            text = "PULLING OVER — DRIVER ASLEEP"
+            if not self._car._safe_to_merge:
+                text = "WAITING FOR SAFE MERGE..."
+            msg = font_lg.render(text, True, (220, 40, 40))
             bx  = self.w // 2 - msg.get_width() // 2
             bg  = pygame.Surface((msg.get_width() + 20, msg.get_height() + 8), pygame.SRCALPHA)
             bg.fill((0, 0, 0, 180))
             surf.blit(bg,  (bx - 10, self.h - 44))
             surf.blit(msg, (bx,      self.h - 40))
+            
+        # Drowsiness speed warning (only mapping if not pulling over)
+        elif self._car.state == "SLOWING":
+            warn = self._font_md.render("⚠ REDUCING SPEED", True, (255, 180, 0))
+            surf.blit(warn, (self.w // 2 - warn.get_width() // 2, self.h - 36))
