@@ -17,7 +17,7 @@ import pygame
 
 from dms_engine.dms_core        import DMSCore
 from ui.ui_manager              import UIManager
-from simulation.car_simulation  import SimulationManager
+from simulation                 import SimulationManager
 from config import (
     CAMERA_INDEX, CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS
 )

@@ -187,3 +187,17 @@ GAZE_ZONE_MAP           = {
     "LEFT_WINDOW":      {"yaw": (-90, -60), "pitch": (-20, 20)},
     "RIGHT_WINDOW":     {"yaw": (60, 90),   "pitch": (-20, 20)},
 }
+
+# ── CARLA Integration ─────────────────────────────────────────────────────────
+CARLA_HOST                  = "localhost"
+CARLA_PORT                  = 2000
+CARLA_MAP                   = "Town03"       # Palm trees, wide roads
+CARLA_TIMEOUT               = 5.0            # Connection timeout (seconds)
+CARLA_RECONNECT_INTERVAL    = 3.0            # Seconds between reconnect attempts
+
+CARLA_CAMERA_WIDTH          = 1280           # Match panel width
+CARLA_CAMERA_HEIGHT         = 480            # Match panel height
+CARLA_CAMERA_FOV            = 90             # Field of view (degrees)
+
+CARLA_TARGET_SPEED_KMH      = 60.0           # Cruise speed in ALERT mode
+CARLA_DROWSY_SPEED_FACTOR   = 0.5            # Speed multiplier when DROWSY
