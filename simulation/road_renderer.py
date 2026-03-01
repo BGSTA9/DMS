@@ -45,10 +45,9 @@ class Tree:
         # Parallax factor: trees farther from road move slightly slower
         self.parallax = 0.92 if random.random() > 0.5 else 1.0
 
-    def draw(self, surf: pygame.Surface, scroll_y: float, car_x_offset: float = 0.0):
-        """Draw tree with proper X offset during pull-over."""
-        # Apply car_x_offset to tree X position so trees move with the road
-        draw_x = int(self.base_x + car_x_offset * self.parallax)
+    def draw(self, surf: pygame.Surface, scroll_y: float):
+        """Draw tree."""
+        draw_x = int(self.base_x)
         draw_y = int(self.y - scroll_y) % (_PANEL_H + 60) - 30
         # Trunk
         pygame.draw.rect(surf, C_TREE_TRUNK,
@@ -129,34 +128,29 @@ class RoadRenderer:
         """Advance the road scroll by speed_px pixels."""
         self._scroll_y = (self._scroll_y + speed_px) % (self.h + 200)
 
-    def render(self, car_x_offset: float = 0.0) -> pygame.Surface:
+    def render(self) -> pygame.Surface:
         """
-        Draw the road and return the surface.
+        Draw the static road and return the surface.
 
-        Args:
-            car_x_offset: How far (px) the road has shifted relative to car
-                          (used for pull-over animation — road shifts right
-                          as car moves to the shoulder)
         Returns:
             pygame.Surface ready to blit
         """
         surf = self._surf
-        cx_off = int(car_x_offset)
 
         # ── Background (sky / off-road area) ─────────────────────────────────
         surf.fill(C_SKY)
 
         # ── Grass strips ─────────────────────────────────────────────────────
-        left_grass_w  = max(0, self.road_x - self.shoulder_w + cx_off)
-        right_grass_x = self.road_x + self.road_w + self.shoulder_w + cx_off
+        left_grass_w  = max(0, self.road_x - self.shoulder_w)
+        right_grass_x = self.road_x + self.road_w + self.shoulder_w
         pygame.draw.rect(surf, C_GRASS, (0, 0, left_grass_w, self.h))
         right_grass_w = max(0, self.w - right_grass_x)
         if right_grass_w > 0:
             pygame.draw.rect(surf, C_GRASS, (right_grass_x, 0, right_grass_w, self.h))
 
         # ── Shoulders ─────────────────────────────────────────────────────────
-        left_shoulder_x = self.road_x - self.shoulder_w + cx_off
-        right_shoulder_x = self.road_x + self.road_w + cx_off
+        left_shoulder_x = self.road_x - self.shoulder_w
+        right_shoulder_x = self.road_x + self.road_w
         pygame.draw.rect(surf, C_SHOULDER,
                          (left_shoulder_x, 0, self.shoulder_w, self.h))
         pygame.draw.rect(surf, C_SHOULDER,
@@ -178,17 +172,17 @@ class RoadRenderer:
 
         # ── Asphalt ───────────────────────────────────────────────────────────
         pygame.draw.rect(surf, C_ASPHALT,
-                         (self.road_x + cx_off, 0, self.road_w, self.h))
+                         (self.road_x, 0, self.road_w, self.h))
 
         # ── Edge lines (solid white) ──────────────────────────────────────────
         lw = 4
         pygame.draw.rect(surf, C_LINE_WHITE,
-                         (self.road_x + cx_off, 0, lw, self.h))
+                         (self.road_x, 0, lw, self.h))
         pygame.draw.rect(surf, C_LINE_WHITE,
-                         (self.road_x + self.road_w - lw + cx_off, 0, lw, self.h))
+                         (self.road_x + self.road_w - lw, 0, lw, self.h))
 
         # ── Dashed centre line ────────────────────────────────────────────────
-        dash_x = self.centre_x - 3 + cx_off
+        dash_x = self.centre_x - 3
         offset = int(self._scroll_y) % self._dash_cycle
         y = -offset
         while y < self.h:
@@ -196,8 +190,8 @@ class RoadRenderer:
                              (dash_x, y, 6, self._dash_h))
             y += self._dash_cycle
 
-        # ── Trees (now properly offset with car_x_offset) ────────────────────
+        # ── Trees ─────────────────────────────────────────────────────────────
         for tree in self._trees_left + self._trees_right:
-            tree.draw(surf, self._scroll_y, car_x_offset=car_x_offset)
+            tree.draw(surf, self._scroll_y)
 
         return surf

@@ -102,7 +102,7 @@ class NPCCar:
 
         self.alive = True
 
-    def update(self, ego_speed: float, car_x_offset: float = 0.0):
+    def update(self, ego_speed: float):
         """Advance NPC position, kill if off-screen."""
         if self.direction == 1:
             # Oncoming: scroll down at ego_speed + NPC speed
@@ -115,9 +115,9 @@ class NPCCar:
         if self.y > _PANEL_H + NPC_H + 50 or self.y < -NPC_H - 200:
             self.alive = False
 
-    def draw(self, surf: pygame.Surface, car_x_offset: float = 0.0):
+    def draw(self, surf: pygame.Surface):
         """Draw a simple NPC car sprite."""
-        cx = int(self.x + car_x_offset)
+        cx = int(self.x)
         cy = int(self.y)
 
         w, h = NPC_W, NPC_H
@@ -198,6 +198,7 @@ class Car:
 
         # Timestamp for pull-over initiation
         self._pullover_start_t = None
+        self._pullover_start_speed = CAR_NORMAL_SPEED
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -246,9 +247,10 @@ class Car:
                 self.state = "PULLING_OVER"
                 self._pullover_start_t = time.time()
                 self._pullover_start_x = self.x
+                self._pullover_start_speed = self.speed
                 # Target: shoulder position (right edge of road + 40px)
                 self._target_x = road_right_edge - CAR_W // 2 - 10
-                self._target_speed = CAR_PULLOVER_SPEED
+                self._target_speed = 0.0
                 self._pullover_progress = 0.0
 
         elif driver_state == "DROWSY":
@@ -273,6 +275,9 @@ class Car:
 
     def _update_speed(self):
         """Physics-based acceleration/deceleration toward target speed."""
+        if self.state == "PULLING_OVER":
+            return
+
         diff = self._target_speed - self.speed
         if abs(diff) < 0.01:
             self.speed = self._target_speed
@@ -291,19 +296,28 @@ class Car:
         Produces a smooth, realistic lateral trajectory.
         """
         if self.state == "PULLING_OVER" and self._pullover_start_t is not None:
-            # S-curve: sigmoid function maps t ∈ [0, duration] → progress ∈ [0, 1]
             elapsed = time.time() - self._pullover_start_t
             t_norm = min(1.0, elapsed / PULLOVER_DURATION_SEC)
-            # Sigmoid: s(t) = 1 / (1 + e^(-12*(t-0.5)))
-            sigmoid = 1.0 / (1.0 + math.exp(-12.0 * (t_norm - 0.5)))
-            self._pullover_progress = sigmoid
+            
+            # Smoothstep: p(t) = 3t^2 - 2t^3
+            p = t_norm * t_norm * (3.0 - 2.0 * t_norm)
+            self._pullover_progress = p
 
             total_dx = self._target_x - self._pullover_start_x
-            self.x = self._pullover_start_x + total_dx * sigmoid
-
-            # Steering tilt proportional to derivative of sigmoid
-            deriv = sigmoid * (1.0 - sigmoid) * 12.0
-            self.steer_angle = max(-18.0, min(18.0, deriv * total_dx * 0.015))
+            
+            # Update X
+            old_x = self.x
+            self.x = self._pullover_start_x + total_dx * p
+            
+            # Longitudinal velocity (cosine ease-out)
+            self.speed = self._pullover_start_speed * math.cos(t_norm * math.pi / 2.0)
+            
+            # Steering angle: theta = arctan(v_lat / v_lon)
+            dx_per_frame = self.x - old_x
+            v_lon = max(0.01, self.speed)
+            theta = math.degrees(math.atan2(dx_per_frame, v_lon))
+            
+            self.steer_angle = max(-30.0, min(30.0, theta))
         elif self.state not in ("PULLING_OVER", "STOPPED"):
             # Move back to home X if not pulling over
             dx = self._target_x - self.x
@@ -402,7 +416,7 @@ class TrafficManager:
         self._npcs: list[NPCCar] = []
         self._next_spawn_t = time.time() + random.uniform(*NPC_SPAWN_INTERVAL)
 
-    def update(self, ego_speed: float, car_x_offset: float = 0.0):
+    def update(self, ego_speed: float):
         """Update all NPCs and spawn new ones if needed."""
         now = time.time()
 
@@ -415,13 +429,13 @@ class TrafficManager:
 
         # Update and filter dead NPCs
         for npc in self._npcs:
-            npc.update(ego_speed, car_x_offset)
+            npc.update(ego_speed)
         self._npcs = [npc for npc in self._npcs if npc.alive]
 
-    def draw(self, surf: pygame.Surface, car_x_offset: float = 0.0):
+    def draw(self, surf: pygame.Surface):
         """Draw all NPC cars."""
         for npc in self._npcs:
-            npc.draw(surf, car_x_offset)
+            npc.draw(surf)
 
     def reset(self):
         self._npcs.clear()
@@ -497,19 +511,18 @@ class SimulationManager:
             swerve = math.sin(time.time() * 2.5) * distraction_score * 18
             self._car.x = self._car._home_x + swerve
 
-        # ── Scroll road (car X offset creates pull-over illusion) ─────────────
-        car_x_offset = self._car.x - self._car._home_x
+        # ── Scroll road ───────────────────────────────────────────────────────
         self._road.scroll(scroll_speed)
 
         # ── Update NPC traffic ────────────────────────────────────────────────
-        self._traffic.update(scroll_speed, car_x_offset)
+        self._traffic.update(scroll_speed)
 
         # ── Render road ───────────────────────────────────────────────────────
-        road_surf = self._road.render(car_x_offset=car_x_offset)
+        road_surf = self._road.render()
         self._surface.blit(road_surf, (0, 0))
 
         # ── Render NPC cars ───────────────────────────────────────────────────
-        self._traffic.draw(self._surface, car_x_offset)
+        self._traffic.draw(self._surface)
 
         # ── Render ego car ────────────────────────────────────────────────────
         self._car.draw(self._surface)
