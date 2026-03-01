@@ -189,15 +189,17 @@ GAZE_ZONE_MAP           = {
 }
 
 # ── CARLA Integration ─────────────────────────────────────────────────────────
-CARLA_HOST                  = "localhost"
-CARLA_PORT                  = 2000
-CARLA_MAP                   = "Town03"       # Palm trees, wide roads
-CARLA_TIMEOUT               = 5.0            # Connection timeout (seconds)
-CARLA_RECONNECT_INTERVAL    = 3.0            # Seconds between reconnect attempts
-
-CARLA_CAMERA_WIDTH          = 1280           # Match panel width
-CARLA_CAMERA_HEIGHT         = 480            # Match panel height
-CARLA_CAMERA_FOV            = 90             # Field of view (degrees)
-
-CARLA_TARGET_SPEED_KMH      = 60.0           # Cruise speed in ALERT mode
-CARLA_DROWSY_SPEED_FACTOR   = 0.5            # Speed multiplier when DROWSY
+CARLA_HOST              = "127.0.0.1"
+CARLA_PORT              = 2000
+CARLA_TIMEOUT           = 10.0
+CARLA_MAP               = "Town03"
+CARLA_SYNC_DELTA        = 1.0 / 20.0         # synchronous tick rate (20 Hz)
+CARLA_VEHICLE_BP        = "vehicle.tesla.model3"
+CARLA_TM_PORT           = 8000
+CARLA_LIDAR_RANGE       = 50.0                # metres
+CARLA_LIDAR_CHANNELS    = 64
+CARLA_LIDAR_PPS         = 500000              # points per second
+CARLA_OFFLINE_BG        = (20, 20, 25)        # dark background when offline
+CARLA_OFFLINE_RETRY_S   = 5.0                 # seconds between reconnect attempts
+CARLA_NORMAL_SPEED      = 0.0                 # TM percentage diff (0 = road limit)
+CARLA_DROWSY_SPEED      = 30.0                # TM percentage diff (30% slower)
