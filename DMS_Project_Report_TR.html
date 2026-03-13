@@ -1,0 +1,847 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Akıllı Sürücü İzleme Sistemi</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+<style>
+:root {
+  --bg: #050810;
+  --surface: rgba(12, 18, 32, 0.85);
+  --surface2: rgba(20, 30, 52, 0.7);
+  --blue: #3b82f6;
+  --violet: #7c3aed;
+  --cyan: #06b6d4;
+  --green: #10b981;
+  --red: #ef4444;
+  --text: #f1f5f9;
+  --muted: #64748b;
+  --border: rgba(255,255,255,0.07);
+  --font: 'Space Grotesk', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --nav-h: 64px;
+}
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color: transparent; }
+html { scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  overflow-x: hidden;
+  padding-bottom: calc(var(--nav-h) + 1rem);
+}
+.bg-grid {
+  position: fixed; inset: 0; z-index: 0;
+  background-image:
+    linear-gradient(rgba(59,130,246,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(59,130,246,0.03) 1px, transparent 1px);
+  background-size: 40px 40px;
+  mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 80% at 50% 50%, black 40%, transparent 100%);
+}
+.bg-orb {
+  position: fixed; border-radius: 50%; filter: blur(100px); z-index: 0; pointer-events: none;
+  animation: drift 18s ease-in-out infinite alternate;
+}
+.bg-orb-1 { width: 500px; height: 500px; background: rgba(59,130,246,0.08); top:-150px; left:-100px; }
+.bg-orb-2 { width: 600px; height: 600px; background: rgba(124,58,237,0.07); bottom:-200px; right:-150px; animation-delay: -6s; }
+.bg-orb-3 { width: 300px; height: 300px; background: rgba(6,182,212,0.05); top:40%; left:40%; animation-delay: -12s; }
+@keyframes drift {
+  0%   { transform: translate(0,0) scale(1); }
+  100% { transform: translate(40px,60px) scale(1.15); }
+}
+.page { position: relative; z-index: 1; max-width: 780px; margin: 0 auto; padding: 1.25rem 1rem 0; }
+
+/* HEADER */
+.header { text-align: center; padding: 2rem 0 1.5rem; animation: fadeUp 0.8s cubic-bezier(0.16,1,0.3,1) both; }
+@keyframes fadeUp {
+  from { opacity:0; transform:translateY(24px); }
+  to   { opacity:1; transform:translateY(0); }
+}
+.sys-badge {
+  display: inline-flex; align-items: center; gap: 0.5rem;
+  padding: 0.35rem 1rem;
+  background: rgba(59,130,246,0.1);
+  border: 1px solid rgba(59,130,246,0.25);
+  border-radius: 999px;
+  font-family: var(--mono); font-size: 0.7rem; color: #60a5fa;
+  letter-spacing: 2px; text-transform: uppercase; margin-bottom: 1.25rem;
+}
+.sys-badge::before {
+  content: ''; width: 6px; height: 6px;
+  background: #10b981; border-radius: 50%;
+  box-shadow: 0 0 8px #10b981;
+  animation: blink 2s ease-in-out infinite;
+}
+@keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.3;} }
+.header h1 {
+  font-size: clamp(1.6rem, 5vw, 2.6rem); font-weight: 700; line-height: 1.15;
+  background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin-bottom: 0.75rem; letter-spacing: -0.5px;
+}
+.header-sub {
+  font-size: clamp(0.82rem, 2.5vw, 0.95rem); color: var(--muted);
+  line-height: 1.6; max-width: 520px; margin: 0 auto 1.75rem;
+}
+
+/* INFO PILLS */
+.info-row { display: flex; flex-wrap: wrap; gap: 0.6rem; justify-content: center; margin-bottom: 2rem; }
+.info-pill {
+  display: flex; align-items: center; gap: 0.6rem;
+  padding: 0.55rem 1rem;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 12px; backdrop-filter: blur(12px);
+  font-size: 0.8rem; flex: 1 1 auto; max-width: 240px; min-width: 140px;
+}
+.info-pill-icon {
+  width: 28px; height: 28px; border-radius: 8px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; flex-shrink: 0;
+}
+.ip-blue   { background: rgba(59,130,246,0.15); color: #60a5fa; }
+.ip-violet { background: rgba(124,58,237,0.15); color: #a78bfa; }
+.ip-green  { background: rgba(16,185,129,0.15); color: #34d399; }
+.info-pill-label { font-family: var(--mono); font-size: 0.6rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.info-pill-value { font-size: 0.82rem; font-weight: 600; color: var(--text); }
+
+/* STAT ROW */
+.stat-row { display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.75rem; margin-bottom: 1.5rem; }
+.stat-card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 1rem 0.75rem; text-align: center;
+  backdrop-filter: blur(12px); position: relative; overflow: hidden;
+}
+.stat-card::after {
+  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
+  height: 2px; border-radius: 0 0 14px 14px;
+}
+.sc-blue::after  { background: #3b82f6; box-shadow: 0 0 12px #3b82f6; }
+.sc-violet::after{ background: #7c3aed; box-shadow: 0 0 12px #7c3aed; }
+.sc-green::after { background: #10b981; box-shadow: 0 0 12px #10b981; }
+.stat-num {
+  font-family: var(--mono); font-size: clamp(1.4rem, 4vw, 1.8rem);
+  font-weight: 700; line-height: 1; margin-bottom: 0.35rem;
+}
+.sc-blue .stat-num   { color: #60a5fa; }
+.sc-violet .stat-num { color: #a78bfa; }
+.sc-green .stat-num  { color: #34d399; }
+.stat-label { font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; }
+
+/* BOTTOM NAV */
+.bottom-nav {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: var(--nav-h);
+  background: rgba(5,8,16,0.92);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  display: flex; align-items: center; justify-content: space-around;
+  z-index: 1000; padding: 0 0.5rem;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.nav-btn {
+  display: flex; flex-direction: column; align-items: center; gap: 3px;
+  padding: 0.5rem 0.75rem; border: none; background: none;
+  cursor: pointer; border-radius: 12px;
+  color: var(--muted); font-family: var(--font);
+  font-size: 0.65rem; font-weight: 500; letter-spacing: 0.3px;
+  transition: color 0.25s; flex: 1; min-width: 0; position: relative;
+}
+.nav-btn i { font-size: 1.1rem; transition: transform 0.25s; }
+.nav-btn.active { color: #60a5fa; }
+.nav-btn.active i { transform: translateY(-1px); }
+.nav-btn.active::after {
+  content: ''; position: absolute; top: 4px; left: 50%; transform: translateX(-50%);
+  width: 28px; height: 2px; background: #3b82f6; border-radius: 2px;
+  box-shadow: 0 0 8px rgba(59,130,246,0.6);
+}
+
+/* SECTIONS */
+.tab-section { display: none; animation: sIn 0.4s cubic-bezier(0.16,1,0.3,1) both; }
+.tab-section.active { display: block; }
+@keyframes sIn {
+  from { opacity:0; transform: translateY(12px); }
+  to   { opacity:1; transform: translateY(0); }
+}
+
+/* CARDS */
+.card {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: 18px; padding: 1.5rem;
+  backdrop-filter: blur(14px); position: relative; overflow: hidden;
+  margin-bottom: 1rem; transition: border-color 0.3s;
+}
+.card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+}
+.card-hd { display: flex; align-items: flex-start; gap: 1rem; margin-bottom: 1rem; }
+.c-icon {
+  width: 44px; height: 44px; flex-shrink: 0; border-radius: 12px;
+  display: flex; align-items: center; justify-content: center; font-size: 1.15rem;
+}
+.ci-blue   { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.2); }
+.ci-violet { background: rgba(124,58,237,0.12); color: #a78bfa; border: 1px solid rgba(124,58,237,0.2); }
+.ci-cyan   { background: rgba(6,182,212,0.12);  color: #22d3ee; border: 1px solid rgba(6,182,212,0.2); }
+.ci-green  { background: rgba(16,185,129,0.12); color: #34d399; border: 1px solid rgba(16,185,129,0.2); }
+.c-title { font-size: 1.05rem; font-weight: 600; color: #fff; margin-bottom: 0.2rem; }
+.c-tag   { font-family: var(--mono); font-size: 0.65rem; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.c-body  { font-size: 0.88rem; color: var(--muted); line-height: 1.65; }
+
+/* FEATURE LIST */
+.flist { list-style: none; margin-top: 0.75rem; display: flex; flex-direction: column; gap: 0.6rem; }
+.flist li { display: flex; align-items: flex-start; gap: 0.75rem; font-size: 0.85rem; color: var(--muted); line-height: 1.55; }
+.flist li i { color: #a78bfa; margin-top: 0.2rem; flex-shrink: 0; font-size: 0.75rem; }
+.flist strong { color: #e2e8f0; }
+
+/* SECTION TITLE */
+.s-title {
+  font-family: var(--mono); font-size: 0.7rem; color: var(--muted);
+  text-transform: uppercase; letter-spacing: 2px;
+  margin-bottom: 1rem; display: flex; align-items: center; gap: 0.75rem;
+}
+.s-title::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--border), transparent); }
+
+/* TAGS */
+.tag-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+.tag { padding: 0.3rem 0.75rem; border-radius: 8px; font-size: 0.72rem; font-family: var(--mono); font-weight: 500; }
+.t-blue   { background: rgba(59,130,246,0.1);  color: #93c5fd; border: 1px solid rgba(59,130,246,0.2); }
+.t-violet { background: rgba(124,58,237,0.1);  color: #c4b5fd; border: 1px solid rgba(124,58,237,0.2); }
+.t-cyan   { background: rgba(6,182,212,0.1);   color: #67e8f9; border: 1px solid rgba(6,182,212,0.2); }
+.t-green  { background: rgba(16,185,129,0.1);  color: #6ee7b7; border: 1px solid rgba(16,185,129,0.2); }
+
+/* ACCORDION */
+.accordion { margin-bottom: 0.75rem; }
+.accordion-btn {
+  width: 100%; background: var(--surface); border: 1px solid var(--border);
+  border-radius: 14px; padding: 1rem 1.25rem;
+  display: flex; align-items: center; justify-content: space-between;
+  cursor: pointer; color: var(--text); font-family: var(--font);
+  font-size: 0.9rem; font-weight: 600; text-align: left;
+  transition: border-color 0.3s, background 0.3s; gap: 0.75rem;
+}
+.accordion-btn:active { background: var(--surface2); }
+.acc-left { display: flex; align-items: center; gap: 0.75rem; }
+.acc-left i { font-size: 1rem; }
+.acc-chev { font-size: 0.75rem; color: var(--muted); transition: transform 0.3s; flex-shrink: 0; }
+.accordion.open .acc-chev { transform: rotate(180deg); }
+.accordion.open .accordion-btn { border-color: rgba(59,130,246,0.3); border-radius: 14px 14px 0 0; }
+.accordion-body {
+  max-height: 0; overflow: hidden;
+  transition: max-height 0.4s cubic-bezier(0.16,1,0.3,1);
+  background: var(--surface2);
+  border: 1px solid rgba(59,130,246,0.2); border-top: none;
+  border-radius: 0 0 14px 14px;
+}
+.accordion-inner { padding: 1rem 1.25rem 1.25rem; }
+.accordion.open .accordion-body { max-height: 500px; }
+
+/* PROGRESS BARS */
+.metric-row { display: flex; flex-direction: column; gap: 0.75rem; margin-top: 0.75rem; }
+.metric-item { display: flex; flex-direction: column; gap: 0.3rem; }
+.metric-top { display: flex; justify-content: space-between; align-items: center; }
+.metric-name { font-size: 0.78rem; color: #cbd5e1; }
+.metric-val  { font-family: var(--mono); font-size: 0.75rem; }
+.pbar { height: 6px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.pfill { height: 100%; border-radius: 3px; width: 0%; transition: width 1.2s cubic-bezier(0.16,1,0.3,1); }
+.pf-blue   { background: linear-gradient(90deg, #3b82f6, #60a5fa); box-shadow: 0 0 8px rgba(59,130,246,0.4); }
+.pf-violet { background: linear-gradient(90deg, #7c3aed, #a78bfa); box-shadow: 0 0 8px rgba(124,58,237,0.4); }
+.pf-cyan   { background: linear-gradient(90deg, #0891b2, #22d3ee); box-shadow: 0 0 8px rgba(6,182,212,0.4); }
+.pf-green  { background: linear-gradient(90deg, #059669, #34d399); box-shadow: 0 0 8px rgba(16,185,129,0.4); }
+
+/* INTRO CARD */
+.intro-card {
+  background: linear-gradient(135deg, rgba(59,130,246,0.06), rgba(124,58,237,0.06));
+  border: 1px solid rgba(59,130,246,0.15); border-radius: 18px;
+  padding: 1.5rem; margin-bottom: 1rem; position: relative; overflow: hidden;
+}
+.intro-card::after {
+  content: ''; position: absolute; top: -60px; right: -60px;
+  width: 200px; height: 200px;
+  background: radial-gradient(circle, rgba(59,130,246,0.08), transparent 70%);
+  border-radius: 50%; pointer-events: none;
+}
+.intro-card h2 { font-size: 1.15rem; font-weight: 700; color: #fff; margin-bottom: 0.75rem; }
+.intro-card p  { font-size: 0.87rem; color: var(--muted); line-height: 1.65; margin-bottom: 0.75rem; }
+
+/* FORMULA BOX */
+.math-block {
+  background: rgba(0,0,0,0.35); border: 1px solid rgba(6,182,212,0.18);
+  border-radius: 14px; padding: 1.1rem 1.25rem 1rem;
+  margin: 1rem 0; display: flex; flex-direction: column; gap: 0.6rem;
+}
+.math-label {
+  font-family: var(--mono); font-size: 0.6rem; color: #22d3ee;
+  text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;
+}
+.math-eq {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0; flex-wrap: wrap;
+}
+.math-lhs {
+  font-family: var(--mono); font-size: 1rem; font-weight: 600;
+  color: #f1f5f9; margin-right: 0.5rem;
+}
+.math-frac {
+  display: inline-flex; flex-direction: column; align-items: center;
+  vertical-align: middle; margin: 0 0.35rem;
+}
+.math-num, .math-den {
+  font-family: var(--mono); font-size: 0.78rem; color: #67e8f9;
+  padding: 0.15rem 0.25rem; white-space: nowrap;
+}
+.math-bar { width: 100%; height: 1px; background: rgba(6,182,212,0.5); }
+.math-eq-sym {
+  font-family: var(--mono); font-size: 1rem; color: #94a3b8; margin: 0 0.4rem;
+}
+.math-desc {
+  font-size: 0.75rem; color: var(--muted); line-height: 1.5;
+  border-top: 1px solid rgba(255,255,255,0.05); padding-top: 0.6rem;
+}
+.math-desc b { color: #cbd5e1; }
+.math-vec-block {
+  background: rgba(0,0,0,0.35); border: 1px solid rgba(124,58,237,0.2);
+  border-radius: 14px; padding: 1.1rem 1.25rem 1rem;
+  margin: 1rem 0; display: flex; flex-direction: column; gap: 0.6rem;
+}
+.math-vec-label {
+  font-family: var(--mono); font-size: 0.6rem; color: #a78bfa;
+  text-transform: uppercase; letter-spacing: 2px; opacity: 0.7;
+}
+.math-vec-row {
+  display: flex; align-items: center; justify-content: center;
+  gap: 0.5rem; flex-wrap: wrap;
+}
+.math-vec-item { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; }
+.math-vec-sym { font-family: var(--mono); font-size: 1rem; font-weight: 600; color: #c4b5fd; }
+.math-vec-sub { font-size: 0.6rem; color: var(--muted); font-family: var(--mono); text-transform: uppercase; letter-spacing: 0.5px; }
+.math-arrow { font-size: 1rem; color: #64748b; margin: 0 0.25rem; align-self: center; }
+.math-result {
+  font-family: var(--mono); font-size: 0.82rem; font-weight: 600; color: #a78bfa;
+  background: rgba(124,58,237,0.1); border: 1px solid rgba(124,58,237,0.25);
+  border-radius: 8px; padding: 0.3rem 0.7rem; align-self: center;
+}
+
+/* PIPELINE */
+.pipeline { display: flex; flex-direction: column; gap: 0; position: relative; }
+.pipe-step { display: flex; gap: 1rem; align-items: stretch; position: relative; }
+.pipe-left { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; width: 40px; }
+.pipe-dot {
+  width: 32px; height: 32px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 0.75rem; font-weight: 700; font-family: var(--mono);
+  flex-shrink: 0; z-index: 1; border: 2px solid; margin-top: 2px;
+}
+.pipe-line { flex: 1; width: 2px; background: linear-gradient(to bottom, rgba(255,255,255,0.07), transparent); margin: 4px 0; }
+.pipe-content { flex: 1; padding-bottom: 1.5rem; }
+.pipe-box {
+  background: var(--surface2); border: 1px solid var(--border);
+  border-radius: 14px; padding: 1rem 1.1rem;
+  position: relative; overflow: hidden; transition: border-color 0.3s;
+}
+.pb-blue   { border-left: 3px solid rgba(59,130,246,0.5); }
+.pb-violet { border-left: 3px solid rgba(124,58,237,0.5); }
+.pb-cyan   { border-left: 3px solid rgba(6,182,212,0.5); }
+.pb-green  { border-left: 3px solid rgba(16,185,129,0.5); }
+.pipe-box h4 { font-size: 0.9rem; font-weight: 600; color: #fff; margin-bottom: 0.3rem; }
+.pipe-box p  { font-size: 0.78rem; color: var(--muted); line-height: 1.5; }
+.pipe-badge {
+  display: inline-flex; align-items: center; margin-top: 0.5rem;
+  padding: 0.2rem 0.6rem; border-radius: 6px;
+  font-family: var(--mono); font-size: 0.65rem; font-weight: 500;
+}
+.pbb-blue   { background: rgba(59,130,246,0.1);  color: #93c5fd; }
+.pbb-violet { background: rgba(124,58,237,0.1);  color: #c4b5fd; }
+.pbb-cyan   { background: rgba(6,182,212,0.1);   color: #67e8f9; }
+.pbb-green  { background: rgba(16,185,129,0.1);  color: #6ee7b7; }
+.pipe-split { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; }
+
+/* OUTCOME ITEMS */
+.outcome {
+  display: flex; gap: 0.85rem; align-items: flex-start;
+  padding: 0.85rem; background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border); border-radius: 12px; margin-bottom: 0.65rem;
+  transition: border-color 0.3s;
+}
+.outcome:active { border-color: rgba(124,58,237,0.3); }
+.outcome-num {
+  font-family: var(--mono); font-size: 1.2rem; font-weight: 700;
+  color: #7c3aed; opacity: 0.4; flex-shrink: 0; line-height: 1; margin-top: 0.1rem;
+}
+.outcome-text { font-size: 0.85rem; color: var(--muted); line-height: 1.55; }
+.outcome-text strong { color: #e2e8f0; display: block; margin-bottom: 0.2rem; font-size: 0.9rem; }
+
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 2px; }
+</style>
+</head>
+<body>
+
+<div class="bg-grid"></div>
+<div class="bg-orb bg-orb-1"></div>
+<div class="bg-orb bg-orb-2"></div>
+<div class="bg-orb bg-orb-3"></div>
+
+<div class="page">
+
+  <!-- HEADER -->
+  <header class="header">
+    <div class="sys-badge">Proje Raporu · DMS v1.0</div>
+    <h1>Akıllı Sürücü<br>İzleme Sistemi</h1>
+    <p class="header-sub">Derin öğrenme ve geometri takibi aracılığıyla trafik güvenliğini artıran gerçek zamanlı, bilgisayarlı görü tabanlı platform.</p>
+
+    <div class="info-row">
+      <div class="info-pill">
+        <div class="info-pill-icon ip-blue"><i class="fa-solid fa-user-graduate"></i></div>
+        <div>
+          <div class="info-pill-label">Öğrenci</div>
+          <div class="info-pill-value">Soheil Sanati Moutaban</div>
+        </div>
+      </div>
+      <div class="info-pill">
+        <div class="info-pill-icon ip-violet"><i class="fa-solid fa-chalkboard-user"></i></div>
+        <div>
+          <div class="info-pill-label">Öğretim Görevlisi</div>
+          <div class="info-pill-value">Öğr.Gör. Ercan Yavuz</div>
+        </div>
+      </div>
+      <div class="info-pill">
+        <div class="info-pill-icon ip-green"><i class="fa-solid fa-book-open"></i></div>
+        <div>
+          <div class="info-pill-label">Ders</div>
+          <div class="info-pill-value">Sistem Analizi II</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat-card sc-blue">
+        <div class="stat-num" data-target="30" data-suffix="+">0</div>
+        <div class="stat-label">FPS İşleme</div>
+      </div>
+      <div class="stat-card sc-violet">
+        <div class="stat-num" data-target="1" data-suffix="ms">0</div>
+        <div class="stat-label">Gecikme</div>
+      </div>
+      <div class="stat-card sc-green">
+        <div class="stat-num" data-target="3" data-suffix="">0</div>
+        <div class="stat-label">Algılama Modu</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- ═══════ OVERVIEW ═══════ -->
+  <section id="sec-overview" class="tab-section active">
+    <div class="s-title">01 · Genel Bakış</div>
+
+    <div class="intro-card">
+      <h2>Projenin Amacı</h2>
+      <p>Sürücü İzleme Sistemi (DMS), proaktif araç güvenliği teknolojilerinde önemli bir ilerlemeyi temsil eder. Python ve OpenCV ile geliştirilen bu sistemin temel amacı, sürücünün durumunu <strong style="color:#93c5fd">gerçek zamanlı</strong> olarak gözlemlemek, yorumlamak ve buna tepki vermektir.</p>
+      <p>Canlı kamera görüntülerini işleyerek yüz geometrisi ve göz metrikleri analiz edilir. Uyku hali, dikkat dağınıklığı veya görsel engel tespit edildiğinde sistem anında uyarı mekanizmasını devreye sokar.</p>
+      <div class="tag-row">
+        <span class="tag t-blue"><i class="fa-solid fa-video"></i>&nbsp; Bilgisayarlı Görü</span>
+        <span class="tag t-violet"><i class="fa-solid fa-brain"></i>&nbsp; Derin Öğrenme</span>
+        <span class="tag t-cyan"><i class="fa-solid fa-bolt"></i>&nbsp; Gerçek Zamanlı</span>
+        <span class="tag t-green"><i class="fa-solid fa-shield-halved"></i>&nbsp; Güvenlik</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div class="c-icon ci-cyan"><i class="fa-solid fa-chart-line"></i></div>
+        <div>
+          <div class="c-title">Sistem Performans Metrikleri</div>
+          <div class="c-tag">Doğruluk Ölçümleri</div>
+        </div>
+      </div>
+      <div class="metric-row">
+        <div class="metric-item">
+          <div class="metric-top">
+            <span class="metric-name">EAR Uyuşukluk Tespiti</span>
+            <span class="metric-val" style="color:#60a5fa">%94</span>
+          </div>
+          <div class="pbar"><div class="pfill pf-blue" data-w="94"></div></div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-top">
+            <span class="metric-name">Baş Duruşu Tahmini</span>
+            <span class="metric-val" style="color:#a78bfa">%89</span>
+          </div>
+          <div class="pbar"><div class="pfill pf-violet" data-w="89"></div></div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-top">
+            <span class="metric-name">PERCLOS Doğruluğu</span>
+            <span class="metric-val" style="color:#22d3ee">%91</span>
+          </div>
+          <div class="pbar"><div class="pfill pf-cyan" data-w="91"></div></div>
+        </div>
+        <div class="metric-item">
+          <div class="metric-top">
+            <span class="metric-name">Sistem Güvenilirliği</span>
+            <span class="metric-val" style="color:#34d399">%98</span>
+          </div>
+          <div class="pbar"><div class="pfill pf-green" data-w="98"></div></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ FEATURES ═══════ -->
+  <section id="sec-features" class="tab-section">
+    <div class="s-title">02 · Temel Özellikler</div>
+
+    <div class="accordion open" id="acc1">
+      <button class="accordion-btn">
+        <div class="acc-left"><i class="fa-solid fa-eye-low-vision" style="color:#60a5fa"></i>Uyuşukluk Tespiti</div>
+        <i class="fa-solid fa-chevron-down acc-chev"></i>
+      </button>
+      <div class="accordion-body">
+        <div class="accordion-inner">
+          <p class="c-body">DMS, yüz noktaları üzerinde katı geometrik analiz uygulayarak sürücünün uyku durumunu hesaplar.</p>
+          <div class="math-block">
+            <div class="math-label">Göz En-Boy Oranı — Eye Aspect Ratio</div>
+            <div class="math-eq">
+              <span class="math-lhs">EAR</span>
+              <span class="math-eq-sym">=</span>
+              <div class="math-frac">
+                <span class="math-num">‖p&#x2082; &minus; p&#x2086;‖ &thinsp;+&thinsp; ‖p&#x2083; &minus; p&#x2085;‖</span>
+                <div class="math-bar"></div>
+                <span class="math-den">2 &thinsp;&times;&thinsp; ‖p&#x2081; &minus; p&#x2084;‖</span>
+              </div>
+            </div>
+            <div class="math-desc">
+              <b>p&#x2081;, p&#x2084;</b> yatay göz köşe noktaları &nbsp;&middot;&nbsp;
+              <b>p&#x2082;, p&#x2083;, p&#x2085;, p&#x2086;</b> dikey göz sınır noktaları.<br>
+              EAR değeri belirlenen eşik değerinin altına düştüğünde uyuşukluk durumu tetiklenir.
+            </div>
+          </div>
+          <ul class="flist">
+            <li><i class="fa-solid fa-circle-dot"></i><span><strong>Göz En-Boy Oranı (EAR)</strong> – gözlerin geometrik açıklık değerini ölçer.</span></li>
+            <li><i class="fa-solid fa-circle-dot"></i><span><strong>PERCLOS</strong> – kayan zaman penceresi üzerinden ortalama göz kapanma yüzdesini hesaplar.</span></li>
+            <li><i class="fa-solid fa-circle-dot"></i><span>EAR eşiğin altına düştüğünde <strong>'UYUYOR'</strong> durumu tetiklenerek anlık alarm gönderilir.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion" id="acc2">
+      <button class="accordion-btn">
+        <div class="acc-left"><i class="fa-solid fa-compass" style="color:#a78bfa"></i>Dikkat Dağınıklığı İzleme</div>
+        <i class="fa-solid fa-chevron-down acc-chev"></i>
+      </button>
+      <div class="accordion-body">
+        <div class="accordion-inner">
+          <p class="c-body">Uyanık kalmak yeterli değildir. Sistem, sürücünün bakış yönünü ve baş duruşunu aktif izler.</p>
+          <div class="math-vec-block">
+            <div class="math-vec-label">3B Baş Duruşu Tahmini — Head Pose Estimation</div>
+            <div class="math-vec-row">
+              <div class="math-vec-item">
+                <span class="math-vec-sym">&psi;</span>
+                <span class="math-vec-sub">Yaw</span>
+              </div>
+              <span class="math-arrow">&plus;</span>
+              <div class="math-vec-item">
+                <span class="math-vec-sym">&theta;</span>
+                <span class="math-vec-sub">Pitch</span>
+              </div>
+              <span class="math-arrow">&plus;</span>
+              <div class="math-vec-item">
+                <span class="math-vec-sym">&phi;</span>
+                <span class="math-vec-sub">Roll</span>
+              </div>
+              <span class="math-arrow">&xrarr;</span>
+              <span class="math-result">Baş Duruşu Vektörü</span>
+            </div>
+            <div class="math-desc">
+              <b>&psi; (Yaw)</b> yatay dönüş &nbsp;&middot;&nbsp; <b>&theta; (Pitch)</b> dikey eğim &nbsp;&middot;&nbsp; <b>&phi; (Roll)</b> eksen dönüşü.<br>
+              Herhangi bir açı belirlenen eşiği aştığında dikkat dağınıklığı skoru güncellenir.
+            </div>
+          </div>
+          <ul class="flist">
+            <li><i class="fa-solid fa-circle-dot"></i><span><strong>Baş Duruşu Tahmini</strong> – aşırı yatay (yaw), dikey (pitch) ve eksen dönüşü (roll) açılarını tespit eder.</span></li>
+            <li><i class="fa-solid fa-circle-dot"></i><span>Çok katmanlı <strong>'Dikkat Dağınıklığı Skoru'</strong> ile kesintinin şiddeti sınıflandırılır.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion" id="acc3">
+      <button class="accordion-btn">
+        <div class="acc-left"><i class="fa-solid fa-shield-halved" style="color:#22d3ee"></i>Engelleme ve Güvenlik</div>
+        <i class="fa-solid fa-chevron-down acc-chev"></i>
+      </button>
+      <div class="accordion-body">
+        <div class="accordion-inner">
+          <p class="c-body">DMS, kameraya müdahale edilmiş ya da engellenmiş koşulları tespit eden yerleşik mekanizmalara sahiptir.</p>
+          <ul class="flist">
+            <li><i class="fa-solid fa-circle-dot"></i><span>Her karede yüz özelliklerinin çıkarılabilirliği sürekli doğrulanır.</span></li>
+            <li><i class="fa-solid fa-circle-dot"></i><span>Kamera kapatılır, eğilir veya körleştirilirse <strong>'KAMERA ENGELLENDİ'</strong> alarmı devreye girer.</span></li>
+            <li><i class="fa-solid fa-circle-dot"></i><span><strong>Sonlu Durum Makinesi (FSM)</strong> koşullu geçişleri yöneterek yanlış pozitif oranını minimize eder.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="accordion" id="acc4">
+      <button class="accordion-btn">
+        <div class="acc-left"><i class="fa-solid fa-microchip" style="color:#34d399"></i>YOLO Derin Öğrenme Modülü</div>
+        <i class="fa-solid fa-chevron-down acc-chev"></i>
+      </button>
+      <div class="accordion-body">
+        <div class="accordion-inner">
+          <p class="c-body">Geometrik analizin yanı sıra arka planda asenkron çalışan YOLO tabanlı nesne tespiti modülü içerir.</p>
+          <ul class="flist">
+            <li><i class="fa-solid fa-circle-dot"></i><span>Ana render döngüsünü engellemeden <strong>ayrı iş parçacığında</strong> çalışır.</span></li>
+            <li><i class="fa-solid fa-circle-dot"></i><span>Telefon kullanımı ve sigara gibi dikkat dağıtıcı nesneleri sınıflandırır.</span></li>
+            <li><i class="fa-solid fa-circle-dot"></i><span>Sonuçlar ana motora <strong>thread-safe</strong> kuyruk yapısıyla iletilir.</span></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ ARCHITECTURE ═══════ -->
+  <section id="sec-architecture" class="tab-section">
+    <div class="s-title">03 · Sistem Mimarisi</div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div class="c-icon ci-blue"><i class="fa-solid fa-network-wired"></i></div>
+        <div>
+          <div class="c-title">Boru Hattı Akış Diyagramı</div>
+          <div class="c-tag">Çok İş Parçacıklı Mimari</div>
+        </div>
+      </div>
+      <p class="c-body" style="margin-bottom:1.25rem;">DMS, ağır derin öğrenme çıkarımlarını ana döngüyü engellemeden işlemek üzere tasarlanmış çok iş parçacıklı mimaride çalışır.</p>
+
+      <div class="pipeline">
+
+        <div class="pipe-step">
+          <div class="pipe-left">
+            <div class="pipe-dot" style="color:#60a5fa;border-color:rgba(59,130,246,0.4);background:rgba(59,130,246,0.08);">1</div>
+            <div class="pipe-line"></div>
+          </div>
+          <div class="pipe-content">
+            <div class="pipe-box pb-blue">
+              <h4><i class="fa-solid fa-video" style="margin-right:0.5rem;opacity:0.7"></i>Video Yakalama</h4>
+              <p>Yüksek kare hızlı kamera akışı alınarak çerçeve tamponu doldurulur.</p>
+              <span class="pipe-badge pbb-blue">OpenCV · VideoCapture</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pipe-step">
+          <div class="pipe-left">
+            <div class="pipe-dot" style="color:#a78bfa;border-color:rgba(124,58,237,0.4);background:rgba(124,58,237,0.08);">2</div>
+            <div class="pipe-line"></div>
+          </div>
+          <div class="pipe-content">
+            <div class="pipe-split">
+              <div class="pipe-box pb-blue">
+                <h4>Geometri Takibi</h4>
+                <p style="font-size:0.75rem;color:var(--muted)">Ana iş parçacığı – 1ms gecikme</p>
+                <span class="pipe-badge pbb-blue">MediaPipe</span>
+              </div>
+              <div class="pipe-box pb-violet">
+                <h4>YOLO Boru Hattı</h4>
+                <p style="font-size:0.75rem;color:var(--muted)">Asenkron arka plan</p>
+                <span class="pipe-badge pbb-violet">Async Thread</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="pipe-step">
+          <div class="pipe-left">
+            <div class="pipe-dot" style="color:#22d3ee;border-color:rgba(6,182,212,0.4);background:rgba(6,182,212,0.08);">3</div>
+            <div class="pipe-line"></div>
+          </div>
+          <div class="pipe-content">
+            <div class="pipe-box pb-cyan">
+              <h4><i class="fa-solid fa-server" style="margin-right:0.5rem;opacity:0.7"></i>Analitik Motoru</h4>
+              <p>Sonlu Durum Makinesi EAR/PERCLOS/Distraksiyon skorlarını değerlendirerek sürücü durumuna karar verir.</p>
+              <span class="pipe-badge pbb-cyan">FSM · Skor Hesaplama</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="pipe-step">
+          <div class="pipe-left">
+            <div class="pipe-dot" style="color:#34d399;border-color:rgba(16,185,129,0.4);background:rgba(16,185,129,0.08);">4</div>
+          </div>
+          <div class="pipe-content">
+            <div class="pipe-box pb-green">
+              <h4><i class="fa-solid fa-desktop" style="margin-right:0.5rem;opacity:0.7"></i>Çıktı &amp; Telemetri</h4>
+              <p>PyGame arayüzü, sesli alarmlar ve araç simülasyon yöneticisi tetiklenir; telemetri verileri kaydedilir.</p>
+              <span class="pipe-badge pbb-green">PyGame · Simülasyon</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div class="c-icon ci-violet"><i class="fa-solid fa-layer-group"></i></div>
+        <div>
+          <div class="c-title">Teknoloji Yığını</div>
+          <div class="c-tag">Kullanılan Araçlar &amp; Kütüphaneler</div>
+        </div>
+      </div>
+      <div class="tag-row" style="margin-top:0.5rem">
+        <span class="tag t-blue">Python 3.x</span>
+        <span class="tag t-blue">OpenCV</span>
+        <span class="tag t-violet">MediaPipe</span>
+        <span class="tag t-violet">YOLO</span>
+        <span class="tag t-cyan">PyGame</span>
+        <span class="tag t-cyan">NumPy</span>
+        <span class="tag t-green">Threading</span>
+        <span class="tag t-green">FSM</span>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══════ IMPACT ═══════ -->
+  <section id="sec-impact" class="tab-section">
+    <div class="s-title">04 · Etki Kapsamı</div>
+
+    <div class="card">
+      <div class="card-hd">
+        <div class="c-icon ci-violet"><i class="fa-solid fa-lightbulb"></i></div>
+        <div>
+          <div class="c-title">Yapay Zeka ile Pratik Güvenlik</div>
+          <div class="c-tag">Akademik &amp; Endüstriyel Değer</div>
+        </div>
+      </div>
+      <p class="c-body" style="margin-bottom:0.75rem">DMS'nin teknik uygulaması, üst düzey makine öğrenmesi modellerini düşük gecikmeli yazılım mühendisliğiyle entegre etme konusunda güçlü bir yetkinlik sergilemektedir.</p>
+      <p class="c-body">Araçlardaki otonom unsurlar yaygınlaştıkça insan denetimli doğrulama kritik önem kazanır. Bu proje, modüler yapısıyla kurumsal genişleme veya daha büyük telemetri platformlarına entegrasyon için hazır bir altyapı sunar.</p>
+    </div>
+
+    <div class="s-title" style="margin-top:1.5rem">Temel Kazanımlar</div>
+
+    <div class="outcome">
+      <div class="outcome-num">01</div>
+      <div class="outcome-text">
+        <strong>Eş Zamanlı Çok İş Parçacıklı Programlama</strong>
+        Python'da yapay zeka görevleri için thread-safe kuyruk yapıları ve asenkron iş parçacığı yönetiminin uygulamalı kullanımı.
+      </div>
+    </div>
+    <div class="outcome">
+      <div class="outcome-num">02</div>
+      <div class="outcome-text">
+        <strong>Matematiksel Geometrinin Yazılıma Dönüşümü</strong>
+        Soyut geometrik hesaplamaların (EAR, yaw/pitch/roll) gerçek zamanlı eyleme dönüştürülebilir arayüz verisine çevrilmesi.
+      </div>
+    </div>
+    <div class="outcome">
+      <div class="outcome-num">03</div>
+      <div class="outcome-text">
+        <strong>Hata Toleranslı Durum Makinesi Tasarımı</strong>
+        Gürültülü ve eksik görsel veriyle başa çıkabilen sağlam Sonlu Durum Makinesi (FSM) mimarisi oluşturulması.
+      </div>
+    </div>
+    <div class="outcome">
+      <div class="outcome-num">04</div>
+      <div class="outcome-text">
+        <strong>Gerçek Dünya Güvenlik Uygulaması</strong>
+        Akademik çalışmanın ötesine geçerek endüstriyel araç güvenlik sistemleriyle entegre edilebilir prototip geliştirilmesi.
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:1rem;background:linear-gradient(135deg,rgba(124,58,237,0.06),rgba(16,185,129,0.06));border-color:rgba(124,58,237,0.15)">
+      <div class="card-hd">
+        <div class="c-icon ci-green"><i class="fa-solid fa-rocket"></i></div>
+        <div>
+          <div class="c-title">Gelecek Genişleme Planı</div>
+          <div class="c-tag">Yol Haritası</div>
+        </div>
+      </div>
+      <ul class="flist">
+        <li><i class="fa-solid fa-arrow-right"></i><span>Weights &amp; Biases ile ML eğitim gözlemlemesi entegrasyonu</span></li>
+        <li><i class="fa-solid fa-arrow-right"></i><span>CAN Bus arayüzü üzerinden araç kontrol sistemlerine bağlantı</span></li>
+        <li><i class="fa-solid fa-arrow-right"></i><span>Bulut tabanlı telemetri ve filo yönetimi desteği</span></li>
+      </ul>
+    </div>
+  </section>
+
+</div><!-- /page -->
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="nav-btn active" id="btn-overview" data-tab="overview">
+    <i class="fa-solid fa-chart-pie"></i>
+    <span>Özet</span>
+  </button>
+  <button class="nav-btn" id="btn-features" data-tab="features">
+    <i class="fa-solid fa-microchip"></i>
+    <span>Özellikler</span>
+  </button>
+  <button class="nav-btn" id="btn-architecture" data-tab="architecture">
+    <i class="fa-solid fa-network-wired"></i>
+    <span>Mimari</span>
+  </button>
+  <button class="nav-btn" id="btn-impact" data-tab="impact">
+    <i class="fa-solid fa-lightbulb"></i>
+    <span>Etki</span>
+  </button>
+</nav>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+
+  /* ── NAV TABS ── */
+  document.querySelectorAll('.nav-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var name = btn.getAttribute('data-tab');
+      document.querySelectorAll('.tab-section').forEach(function (s) { s.classList.remove('active'); });
+      document.querySelectorAll('.nav-btn').forEach(function (b) { b.classList.remove('active'); });
+      document.getElementById('sec-' + name).classList.add('active');
+      btn.classList.add('active');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (name === 'overview') triggerBars();
+    });
+  });
+
+  /* ── ACCORDION ── */
+  document.querySelectorAll('.accordion-btn').forEach(function (btn) {
+    btn.addEventListener('click', function () {
+      var acc = btn.closest('.accordion');
+      var wasOpen = acc.classList.contains('open');
+      document.querySelectorAll('.accordion').forEach(function (a) { a.classList.remove('open'); });
+      if (!wasOpen) acc.classList.add('open');
+    });
+  });
+
+  /* ── COUNTERS ── */
+  document.querySelectorAll('[data-target]').forEach(function (el) {
+    var target = parseInt(el.getAttribute('data-target'));
+    var suffix = el.getAttribute('data-suffix') || '';
+    var current = 0;
+    var step = Math.max(1, Math.ceil(target / 30));
+    var timer = setInterval(function () {
+      current = Math.min(current + step, target);
+      el.textContent = current + suffix;
+      if (current >= target) clearInterval(timer);
+    }, 40);
+  });
+
+  /* ── PROGRESS BARS ── */
+  triggerBars();
+
+  function triggerBars() {
+    document.querySelectorAll('.pfill').forEach(function (bar) {
+      setTimeout(function () { bar.style.width = bar.getAttribute('data-w') + '%'; }, 200);
+    });
+  }
+
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Intelligent Driver Monitoring System - Overview</title>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --surface-color: rgba(20, 26, 40, 0.7);
+            --surface-hover: rgba(30, 39, 58, 0.8);
+            --primary-accent: #3b82f6;
+            --secondary-accent: #8b5cf6;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: rgba(255, 255, 255, 0.08);
+            --glass-blur: blur(16px);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            overflow-x: hidden;
+            background-image: 
+                radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.15) 0%, transparent 50%);
+            background-attachment: fixed;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: 'Outfit', sans-serif;
+        }
+
+        /* Ambient glowing orbs */
+        .orb {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            z-index: -1;
+            animation: float 20s infinite ease-in-out alternate;
+        }
+        .orb-1 { width: 400px; height: 400px; background: rgba(59, 130, 246, 0.1); top: -100px; left: -100px; }
+        .orb-2 { width: 500px; height: 500px; background: rgba(139, 92, 246, 0.1); bottom: -200px; right: -100px; animation-delay: -5s; }
+
+        @keyframes float {
+            0% { transform: translate(0, 0) scale(1); }
+            100% { transform: translate(50px, 50px) scale(1.1); }
+        }
+
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 2rem;
+            opacity: 0;
+            transform: translateY(20px);
+            animation: fadeIn 1s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes fadeIn {
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Header */
+        header {
+            text-align: center;
+            margin-bottom: 4rem;
+            margin-top: 2rem;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 0.5rem 1.25rem;
+            background: rgba(59, 130, 246, 0.15);
+            color: #60a5fa;
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 50px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+        }
+
+        header h1 {
+            font-size: 3.5rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #fff 0%, #cbd5e1 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+            letter-spacing: -1px;
+        }
+
+        header p {
+            font-size: 1.25rem;
+            color: var(--text-muted);
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        /* Navigation Tabs */
+        .tabs {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            margin-bottom: 3rem;
+            position: sticky;
+            top: 20px;
+            z-index: 100;
+        }
+
+        .tab-btn {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            padding: 1rem 2rem;
+            border-radius: 16px;
+            cursor: pointer;
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 500;
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .tab-btn.active {
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
+            border-color: rgba(139, 92, 246, 0.4);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .tab-btn:hover:not(.active) {
+            background: var(--surface-hover);
+            transform: translateY(-2px);
+        }
+
+        /* Content Sections */
+        .tab-content {
+            display: none;
+            animation: slideUp 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes slideUp {
+            from { opacity: 0; transform: translateY(15px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Cards Layout */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 2rem;
+        }
+
+        .card {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 2.5rem;
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            transition: all 0.4s ease;
+            position: relative;
+            overflow: hidden;
+            box-shadow: 0 4px 24px -1px rgba(0, 0, 0, 0.2);
+        }
+
+        .card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+        }
+
+        .card:hover {
+            transform: translateY(-5px);
+            background: var(--surface-hover);
+            box-shadow: 0 20px 40px -5px rgba(0, 0, 0, 0.3);
+            border-color: rgba(255, 255, 255, 0.15);
+        }
+
+        .card-icon {
+            width: 60px;
+            height: 60px;
+            border-radius: 16px;
+            background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(139, 92, 246, 0.2));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.75rem;
+            color: #60a5fa;
+            margin-bottom: 1.5rem;
+            border: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .card h3 {
+            font-size: 1.5rem;
+            margin-bottom: 1rem;
+            color: #fff;
+        }
+
+        .card p {
+            color: var(--text-muted);
+            font-size: 1rem;
+            line-height: 1.7;
+        }
+
+        /* Architecture Diagram */
+        .architecture-box {
+            background: var(--surface-color);
+            border: 1px solid var(--border-color);
+            border-radius: 24px;
+            padding: 3rem;
+            text-align: center;
+            position: relative;
+        }
+        
+        .flow-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            align-items: center;
+            margin-top: 2rem;
+        }
+
+        .flow-row {
+            display: flex;
+            gap: 2rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .flow-step {
+            background: rgba(30, 39, 58, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 1.5rem 2rem;
+            border-radius: 16px;
+            min-width: 200px;
+            position: relative;
+            z-index: 2;
+        }
+        
+        .flow-step h4 {
+            color: #60a5fa;
+            margin-bottom: 0.5rem;
+        }
+
+        .flow-arrow {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: var(--text-muted);
+            opacity: 0.5;
+        }
+
+        /* List Items */
+        .feature-list {
+            list-style: none;
+            margin-top: 1.5rem;
+        }
+
+        .feature-list li {
+            display: flex;
+            align-items: flex-start;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            color: var(--text-muted);
+        }
+
+        .feature-list i {
+            color: #8b5cf6;
+            margin-top: 0.25rem;
+        }
+
+        @media (max-width: 768px) {
+            header h1 { font-size: 2.5rem; }
+            .tabs { flex-wrap: wrap; }
+            .tab-btn { flex: 1 1 45%; justify-content: center; }
+            .flow-row { flex-direction: column; }
+            .flow-arrow { transform: rotate(90deg); margin: 1rem 0; }
+        }
+    </style>
+</head>
+<body>
+    <!-- Background elements -->
+    <div class="orb orb-1"></div>
+    <div class="orb orb-2"></div>
+
+    <div class="container">
+        <header>
+            <div class="badge">Project Report</div>
+            <h1>Intelligent Driver Monitoring System</h1>
+            <p>A real-time, computer vision-based platform enhancing road safety through deep learning and geometry tracking.</p>
+        </header>
+
+        <nav class="tabs">
+            <button class="tab-btn active" onclick="switchTab('overview')">
+                <i class="fa-solid fa-chart-pie"></i> Executive Overview
+            </button>
+            <button class="tab-btn" onclick="switchTab('features')">
+                <i class="fa-solid fa-microchip"></i> Core Features
+            </button>
+            <button class="tab-btn" onclick="switchTab('architecture')">
+                <i class="fa-solid fa-network-wired"></i> Architecture
+            </button>
+            <button class="tab-btn" onclick="switchTab('impact')">
+                <i class="fa-solid fa-lightbulb"></i> Impact Scope
+            </button>
+        </nav>
+
+        <main>
+            <!-- Overview Tab -->
+            <section id="overview" class="tab-content active">
+                <div class="card" style="padding: 3rem; margin-bottom: 2rem;">
+                    <h3>Project Purpose</h3>
+                    <p style="font-size: 1.125rem; margin-bottom: 1.5rem;">
+                        The Driver Monitoring System (DMS) represents a significant leap forward in proactive vehicle safety technologies. Developed comprehensively using Python and OpenCV, the core objective of DMS is to observe, interpret, and react to a driver's state in real-time.
+                    </p>
+                    <p style="font-size: 1.125rem; margin-bottom: 1.5rem;">
+                        By ingesting live camera feeds, the system processes facial geometry and ocular metrics to construct an accurate profile of driver awareness. If a driver exhibits signs of drowsiness, distraction, or visual obstruction, the system triggers immediate state changes, linking directly to UI alerts and vehicle simulation modules.
+                    </p>
+                    <div style="display: flex; gap: 1rem; margin-top: 2rem; flex-wrap: wrap;">
+                        <span class="badge" style="margin: 0; background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.1);"><i class="fa-solid fa-video"></i> Computer Vision</span>
+                        <span class="badge" style="margin: 0; background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.1);"><i class="fa-solid fa-brain"></i> Deep Learning</span>
+                        <span class="badge" style="margin: 0; background: rgba(255,255,255,0.05); color: #fff; border-color: rgba(255,255,255,0.1);"><i class="fa-solid fa-bolt"></i> Real-time Analytics</span>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Features Tab -->
+            <section id="features" class="tab-content">
+                <div class="grid">
+                    <div class="card">
+                        <div class="card-icon">
+                            <i class="fa-solid fa-eye-low-vision"></i>
+                        </div>
+                        <h3>Drowsiness Detection</h3>
+                        <p>DMS utilizes strict geometrical analysis on the facial landmarks, continuously calculating:</p>
+                        <ul class="feature-list">
+                            <li><i class="fa-solid fa-check-circle"></i> <strong>Eye Aspect Ratio (EAR)</strong> to measure how open the eyes are.</li>
+                            <li><i class="fa-solid fa-check-circle"></i> <strong>PERCLOS</strong> (Percentage of Eye Closure) over rolling timeframes to determine true driver fatigue.</li>
+                            <li><i class="fa-solid fa-check-circle"></i> Immediate alert triggers when dropping into the robust 'SLEEPING' state.</li>
+                        </ul>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-icon">
+                            <i class="fa-solid fa-mobile-screen"></i>
+                        </div>
+                        <h3>Distraction Monitoring</h3>
+                        <p>It's not just about staying awake; attention matters. The system actively monitors where the driver's focus rests.</p>
+                        <ul class="feature-list">
+                            <li><i class="fa-solid fa-check-circle"></i> <strong>Head Pose Estimation</strong> to detect severe pitch, yaw, and roll indicating the driver is looking away.</li>
+                            <li><i class="fa-solid fa-check-circle"></i> Assigns a multi-tiered 'Distraction Score' to grade the severity of attention lapses.</li>
+                        </ul>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-icon">
+                            <i class="fa-solid fa-shield-halved"></i>
+                        </div>
+                        <h3>Obstruction & Security</h3>
+                        <p>To ensure system integrity, DMS has built-in failsafes to detect tampered conditions.</p>
+                        <ul class="feature-list">
+                            <li><i class="fa-solid fa-check-circle"></i> Continually verifies that facial features are reliably extractable.</li>
+                            <li><i class="fa-solid fa-check-circle"></i> Triggers 'CAMERA OBSTRUCTION' alarms if the sensor is covered, tilted, or blinded.</li>
+                        </ul>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Architecture Tab -->
+            <section id="architecture" class="tab-content">
+                <div class="architecture-box">
+                    <h3 style="font-size: 2rem; margin-bottom: 1rem; color: #fff;">System Pipeline Flow</h3>
+                    <p style="color: var(--text-muted); max-width: 600px; margin: 0 auto;">DMS operates on a robust, multithreaded architecture designed to process heavy deep learning inferencing without blocking the main render loop.</p>
+                    
+                    <div class="flow-container">
+                        <!-- Row 1 -->
+                        <div class="flow-row">
+                            <div class="flow-step">
+                                <i class="fa-solid fa-video" style="font-size: 2rem; color: #94a3b8; margin-bottom: 1rem;"></i>
+                                <h4>1. Video Capture</h4>
+                                <p style="font-size: 0.875rem; color: var(--text-muted);">High FPS Matrix feed via OpenCV</p>
+                            </div>
+                        </div>
+
+                        <div class="flow-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+
+                        <!-- Row 2 -->
+                        <div class="flow-row">
+                            <div class="flow-step" style="border-color: rgba(59, 130, 246, 0.4);">
+                                <h4>2a. Geometry Tracking</h4>
+                                <p style="font-size: 0.875rem; color: var(--text-muted);">Main Thread (1ms Latency)</p>
+                            </div>
+                            <div class="flow-arrow"><i class="fa-solid fa-plus"></i></div>
+                            <div class="flow-step" style="border-color: rgba(139, 92, 246, 0.4);">
+                                <h4>2b. DL Pipeline (YOLO)</h4>
+                                <p style="font-size: 0.875rem; color: var(--text-muted);">Async Background Thread</p>
+                            </div>
+                        </div>
+
+                        <div class="flow-arrow"><i class="fa-solid fa-arrow-down"></i></div>
+
+                        <!-- Row 3 -->
+                        <div class="flow-row">
+                            <div class="flow-step">
+                                <i class="fa-solid fa-server" style="font-size: 2rem; color: #94a3b8; margin-bottom: 1rem;"></i>
+                                <h4>3. Analytics Engine</h4>
+                                <p style="font-size: 0.875rem; color: var(--text-muted);">Finite State Machine evaluating scores</p>
+                            </div>
+                            <div class="flow-arrow"><i class="fa-solid fa-arrow-right"></i></div>
+                            <div class="flow-step">
+                                <i class="fa-solid fa-desktop" style="font-size: 2rem; color: #94a3b8; margin-bottom: 1rem;"></i>
+                                <h4>4. Output / Telemetry</h4>
+                                <p style="font-size: 0.875rem; color: var(--text-muted);">PyGame UI & Simulation Manager</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Impact Tab -->
+            <section id="impact" class="tab-content">
+                <div class="card" style="padding: 3rem;">
+                    <div style="display: flex; gap: 3rem; align-items: center; flex-wrap: wrap;">
+                        <div style="flex: 1; min-width: 300px;">
+                            <h3 style="font-size: 2rem; margin-bottom: 1.5rem; color: #fff;">Bridging AI and Practical Safety</h3>
+                            <p style="font-size: 1.125rem; margin-bottom: 1rem;">
+                                The technical implementation of DMS demonstrates a strong mastery of integrating high-level machine learning models with low-latency software engineering. 
+                            </p>
+                            <p style="font-size: 1.125rem; color: var(--text-muted);">
+                                As autonomous elements in vehicles become more common, human-in-the-loop verification is crucial. This project not only serves as a robust prototype for evaluating physical human state, but functions as a modular engine ready for enterprise expansion or integration with larger telemetry tracking platforms (e.g., Weights & Biases for ML training observability).
+                            </p>
+                        </div>
+                        <div style="flex: 1; min-width: 300px; background: rgba(0,0,0,0.3); border-radius: 20px; padding: 2rem; border: 1px solid rgba(255,255,255,0.05);">
+                            <h4 style="color: #60a5fa; margin-bottom: 1rem;">Key Learnings / Outcomes</h4>
+                            <ul class="feature-list" style="margin-top: 0;">
+                                <li><i class="fa-solid fa-rocket"></i> Applied execution of concurrent multi-threading in Python for AI tasks.</li>
+                                <li><i class="fa-solid fa-rocket"></i> Translation of abstract mathematical geometry (EAR, yaw/pitch) into actionable UI data.</li>
+                                <li><i class="fa-solid fa-rocket"></i> Creation of a fault-tolerant State Machine to handle noisy visual data gracefully.</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <script>
+        function switchTab(tabId) {
+            // Update buttons
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.currentTarget.classList.add('active');
+
+            // Update content
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.remove('active');
+            });
+            document.getElementById(tabId).classList.add('active');
+        }
+    </script>
+</body>
+</html>
