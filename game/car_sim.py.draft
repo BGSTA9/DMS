@@ -1,0 +1,42 @@
+import pygame
+import math
+import random
+import sys
+
+# ─────────────────────────────────────────
+#  CONFIG & SCALING
+# ─────────────────────────────────────────
+SCREEN_W, SCREEN_H = 1100, 750
+FPS      = 60
+
+# Pixels per meter
+PPM = 12
+
+# Colors
+C_GRASS     = (34, 110, 34)
+C_ROAD      = (50, 50, 50)
+C_SHOULDER  = (70, 70, 70)
+C_LINE      = (220, 220, 220)
+C_YELLOW    = (230, 200, 40)
+C_HUD_BG    = (10, 10, 20, 180)
+C_WHITE     = (255, 255, 255)
+C_RED       = (220, 50, 50)
+C_GREEN     = (50, 200, 80)
+C_ORANGE    = (255, 140, 0)
+C_BLACK     = (0, 0, 0)
+
+# Road config
+LANE_W      = int(3.5 * PPM)
+LANES_PER_DIR = 3
+MEDIAN_W    = int(1.0 * PPM)
+SHOULDER_W  = int(2.5 * PPM)
+LAYBY_W     = int(3.5 * PPM)
+LAYBY_LEN   = int(40 * PPM)
+LAYBY_GAP   = int(800 * PPM)
+
+TOTAL_ROAD_W = (LANES_PER_DIR * 2 * LANE_W) + MEDIAN_W + (2 * SHOULDER_W)
+
+# Intersections / Traffic lights
+INTERSECTION_GAP = int(1000 * PPM)
+INTERSECTION_W   = int(15 * PPM)
+
