@@ -54,9 +54,11 @@ class GameSimulationManager:
         sim.reset()
     """
 
-    def __init__(self, width: int = _PANEL_W, height: int = _PANEL_H):
+    def __init__(self, width: int = _PANEL_W, height: int = _PANEL_H,
+                 fullscreen: bool = False):
         self.w = width
         self.h = height
+        self._fullscreen = fullscreen
 
         # Internal game surface (rendered at game's native resolution, then scaled)
         self._game_surf = pygame.Surface((GAME_W, GAME_H))
@@ -94,6 +96,7 @@ class GameSimulationManager:
         # DMS state tracking
         self._driver_state = "ALERT"
         self._drowsiness_score = 0.0
+        self._distraction_score = 0.0
         self._pullover_active = False
         self._pullover_stopped = False
 
@@ -120,6 +123,7 @@ class GameSimulationManager:
         # Update DMS state
         self._driver_state = driver_state
         self._drowsiness_score = drowsiness_score
+        self._distraction_score = distraction_score
 
         # Apply DMS effects to the game
         self._apply_dms_state(driver_state, drowsiness_score)
@@ -181,6 +185,34 @@ class GameSimulationManager:
             pygame.transform.scale(self._game_surf, (self.w, self.h), self._output_surf)
             return self._output_surf
         return self._game_surf
+
+    # ── Exposed properties (for TeslaHUD) ────────────────────────────────────
+
+    @property
+    def player(self):
+        return self._player
+
+    @property
+    def speed_kmh(self) -> float:
+        return abs(self._player.speed) * 3.6
+
+    @property
+    def gear_label(self) -> str:
+        kmh = abs(self._player.speed) * 3.6
+        if self._player.reversing:
+            return "R"
+        elif kmh < 3:
+            return "N"
+        else:
+            return str(self._player.gear)
+
+    @property
+    def is_pulling_over(self) -> bool:
+        return self._pullover_active
+
+    @property
+    def is_stopped(self) -> bool:
+        return self._pullover_stopped
 
     def reset(self) -> None:
         """Reset the simulation to initial state."""
@@ -344,15 +376,16 @@ class GameSimulationManager:
         for car in sorted(all_cars, key=lambda c: c.y):
             car.draw(surf, cam_y, t, car.base_surf)
 
-        # HUD (speedometer, signals, etc.)
-        draw_hud(surf, self._player, self._world,
-                 self._font_big, self._font_med, self._font_sm)
+        # In fullscreen mode, the Tesla HUD handles all overlays.
+        # In panel mode (split-screen), use the built-in game HUD.
+        if not self._fullscreen:
+            draw_hud(surf, self._player, self._world,
+                     self._font_big, self._font_med, self._font_sm)
+            self._panel.draw(surf, self._player, t)
 
-        # Control panel
-        self._panel.draw(surf, self._player, t)
-
-        # DMS state overlay (show the driver's current state)
-        self._draw_dms_overlay(surf)
+        # In panel mode, show a simple DMS overlay
+        if not self._fullscreen:
+            self._draw_dms_overlay(surf)
 
     def _draw_dms_overlay(self, surf):
         """Draw a small DMS state indicator on the game surface."""
