@@ -1,4 +1,4 @@
-from simulation.carla_simulation import CARLASimulationManager \
+from simulation.game_simulation import GameSimulationManager \
     as SimulationManager
 
 __all__ = ["SimulationManager"]

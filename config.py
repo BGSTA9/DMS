@@ -187,19 +187,3 @@ GAZE_ZONE_MAP           = {
     "LEFT_WINDOW":      {"yaw": (-90, -60), "pitch": (-20, 20)},
     "RIGHT_WINDOW":     {"yaw": (60, 90),   "pitch": (-20, 20)},
 }
-
-# ── CARLA Integration ─────────────────────────────────────────────────────────
-CARLA_HOST              = "127.0.0.1"
-CARLA_PORT              = 2000
-CARLA_TIMEOUT           = 10.0
-CARLA_MAP               = "Town03"
-CARLA_SYNC_DELTA        = 1.0 / 20.0         # synchronous tick rate (20 Hz)
-CARLA_VEHICLE_BP        = "vehicle.tesla.model3"
-CARLA_TM_PORT           = 8000
-CARLA_LIDAR_RANGE       = 50.0                # metres
-CARLA_LIDAR_CHANNELS    = 64
-CARLA_LIDAR_PPS         = 500000              # points per second
-CARLA_OFFLINE_BG        = (20, 20, 25)        # dark background when offline
-CARLA_OFFLINE_RETRY_S   = 5.0                 # seconds between reconnect attempts
-CARLA_NORMAL_SPEED      = 0.0                 # TM percentage diff (0 = road limit)
-CARLA_DROWSY_SPEED      = 30.0                # TM percentage diff (30% slower)
