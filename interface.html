@@ -257,17 +257,7 @@ body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:9999;b
     <div class="slbl">EMOTION</div>
     <div id="emo-box"><span class="emo-tag">DETECTED STATE</span><span class="emo-chip" id="emo-chip">NEUTRAL</span></div>
 
-    <div id="qt">
-      <div class="qt-lbl">QUICK TEST</div>
-      <div class="qt-btns">
-        <button class="qb" style="color:var(--green);border-color:rgba(0,255,136,.3)" onclick="DMS.set({alertState:'alert',distraction:8,drowsiness:5,warningBanner:null,drivingStatus:'safe',emotion:'neutral',blinkRate:16,earLeft:.34,earRight:.33,headPose:{pitch:-2,yaw:1,roll:0},gaze:{x:0,y:0}})">ALL CLEAR</button>
-        <button class="qb" style="color:var(--red);border-color:rgba(255,34,68,.3)" onclick="DMS.set({alertState:'distracted',distraction:80,drowsiness:20,warningBanner:'DRIVER DISTRACTED',drivingStatus:'danger',activeDistraction:'phone',emotion:'neutral'})">DISTRACT</button>
-        <button class="qb" style="color:var(--amber);border-color:rgba(255,170,0,.3)" onclick="DMS.set({alertState:'distracted',drowsiness:78,distraction:15,warningBanner:'DRIVER DROWSY',drivingStatus:'danger',earLeft:.18,earRight:.16,blinkRate:6,emotion:'drowsy'})">DROWSY</button>
-        <button class="qb" style="color:var(--pink);border-color:rgba(255,42,255,.3)" onclick="DMS.set({drivingStatus:'critical',alertState:'distracted',drowsiness:90,distraction:85,warningBanner:'CRITICAL ALERT',emotion:'fearful',headPose:{pitch:25,yaw:30,roll:10}})">CRITICAL</button>
-        <button class="qb" style="color:var(--cyan);border-color:rgba(0,229,255,.3)" onclick="DMS.set({laneDeviation:'left'})">LANE L</button>
-        <button class="qb" style="color:var(--cyan);border-color:rgba(0,229,255,.3)" onclick="DMS.set({laneDeviation:'right'})">LANE R</button>
-      </div>
-    </div>
+
   </div>
 </div>
 </div>

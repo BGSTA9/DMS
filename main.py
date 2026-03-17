@@ -51,8 +51,8 @@ def parse_args():
                         help="Camera capture height")
     parser.add_argument("--no-dl",   action="store_true",
                         help="Disable DL modules (run geometry only)")
-    parser.add_argument("--port",    type=int, default=5000,
-                        help="Web dashboard port (default: 5000)")
+    parser.add_argument("--port",    type=int, default=8080,
+                        help="Web dashboard port (default: 8080)")
     return parser.parse_args()
 
 
@@ -149,7 +149,11 @@ def main():
             )
 
             # ── 6. Push everything to web dashboard ───────────────────────────
-            dashboard.push_state(state, frame, sim_surf)
+            dashboard.push_state(
+                state, frame, sim_surf,
+                speed_kmh=sim.speed_kmh,
+                gear_label=sim.gear_label,
+            )
 
             # ── 7. Log key events ─────────────────────────────────────────────
             if state.driver_state == "SLEEPING":

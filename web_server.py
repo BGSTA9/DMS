@@ -9,16 +9,23 @@
 import os
 import time
 import base64
+import math
 import threading
 from io import BytesIO
 
 import cv2
 import numpy as np
 import pygame
-from flask import Flask, send_from_directory
+import mediapipe as mp
+from flask import Flask, send_file, abort
 from flask_socketio import SocketIO
 
 from core.logger import get_logger
+from config import LEFT_IRIS_IDX, RIGHT_IRIS_IDX
+
+# MediaPipe face mesh connections for drawing
+_FACE_CONTOURS = list(mp.solutions.face_mesh.FACEMESH_CONTOURS)
+_FACE_TESSELATION = list(mp.solutions.face_mesh.FACEMESH_TESSELATION)
 
 log = get_logger("web_server")
 
@@ -26,7 +33,7 @@ log = get_logger("web_server")
 
 _dir = os.path.dirname(os.path.abspath(__file__))
 
-app = Flask(__name__, static_folder=_dir)
+app = Flask(__name__)
 app.config["SECRET_KEY"] = "dms-dashboard-secret"
 
 socketio = SocketIO(
@@ -42,12 +49,15 @@ socketio = SocketIO(
 
 @app.route("/")
 def index():
-    return send_from_directory(_dir, "interface.html")
+    return send_file(os.path.join(_dir, "interface.html"))
 
 
 @app.route("/<path:filename>")
 def static_file(filename):
-    return send_from_directory(_dir, filename)
+    filepath = os.path.join(_dir, filename)
+    if os.path.isfile(filepath):
+        return send_file(filepath)
+    abort(404)
 
 
 # ── Keyboard State (browser → Pygame) ────────────────────────────────────────
@@ -120,7 +130,7 @@ class _VirtualKeyState:
 
 class DashboardServer:
 
-    def __init__(self, host="0.0.0.0", port=5000):
+    def __init__(self, host="0.0.0.0", port=8080):
         self.host = host
         self.port = port
         self._thread = None
@@ -161,7 +171,8 @@ class DashboardServer:
         """
         pygame.key.get_pressed = lambda: self._virtual_keys
 
-    def push_state(self, analytics_state, frame_bgr=None, game_surface=None):
+    def push_state(self, analytics_state, frame_bgr=None, game_surface=None,
+                   speed_kmh=0.0, gear_label="N"):
         """
         Stream telemetry + camera + game to the browser.
         Throttled to ~15fps.
@@ -189,13 +200,16 @@ class DashboardServer:
         # Gaze zone
         gaze_zone = _gaze_to_zone(geo.gaze.horizontal, geo.gaze.vertical)
 
-        # Active distraction
+        # Active distraction from detection
         det = state.detection
         active_dist = None
         if det.phone_detected:      active_dist = "phone"
         elif det.cigarette_detected: active_dist = "smoking"
         elif det.mask_detected:      active_dist = "mask"
         elif det.glasses_detected:   active_dist = "glasses"
+
+        # Also check seatbelt
+        seatbelt = det.seatbelt_detected
 
         # Alert state
         alert_state = "alert"
@@ -217,7 +231,12 @@ class DashboardServer:
                            "sleeping", "surprised"):
             emotion = "neutral"
 
+        # Detection labels list (for icons)
+        det_labels = [box.label for box in det.boxes]
+
         payload = {
+            "speed": round(speed_kmh, 0),
+            "gear": gear_label,
             "drowsiness": round(state.drowsiness_pct, 1),
             "distraction": round(state.distraction_pct, 1),
             "alertState": alert_state,
@@ -234,39 +253,89 @@ class DashboardServer:
             "perclos": round(state.perclos, 3),
             "gazeZone": gaze_zone,
             "emotion": emotion,
+            "detections": det_labels,
+            "seatbelt": seatbelt,
+            "faceDetected": geo.face_detected,
         }
 
         socketio.emit("dms_update", payload)
 
-        # ── Encode camera frame ───────────────────────────────────────────
+        # ── Encode camera frame WITH face mesh overlay ────────────────────
         if frame_bgr is not None:
             try:
-                h, w = frame_bgr.shape[:2]
-                scale = min(320 / w, 240 / h)
-                small = cv2.resize(frame_bgr, None, fx=scale, fy=scale)
+                vis = frame_bgr.copy()
+                h, w = vis.shape[:2]
+
+                # Draw face mesh if detected
+                if geo.face_detected and geo.landmarks is not None:
+                    lm = geo.landmarks
+
+                    # Tessellation (thin green lines, every 3rd for perf)
+                    for i, j in _FACE_TESSELATION[::3]:
+                        if i < len(lm) and j < len(lm):
+                            p1 = (int(lm[i][0] * w), int(lm[i][1] * h))
+                            p2 = (int(lm[j][0] * w), int(lm[j][1] * h))
+                            cv2.line(vis, p1, p2, (40, 100, 40), 1)
+
+                    # Contours (brighter green)
+                    for i, j in _FACE_CONTOURS:
+                        if i < len(lm) and j < len(lm):
+                            p1 = (int(lm[i][0] * w), int(lm[i][1] * h))
+                            p2 = (int(lm[j][0] * w), int(lm[j][1] * h))
+                            cv2.line(vis, p1, p2, (60, 200, 60), 1)
+
+                    # Iris landmarks (cyan dots)
+                    for idx in LEFT_IRIS_IDX + RIGHT_IRIS_IDX:
+                        if idx < len(lm):
+                            px = int(lm[idx][0] * w)
+                            py = int(lm[idx][1] * h)
+                            cv2.circle(vis, (px, py), 3, (200, 220, 0), -1)
+
+                    # Gaze arrows (red) from iris centers
+                    gh = geo.gaze.horizontal
+                    gv = geo.gaze.vertical
+                    arrow_len = 30.0
+                    for iris_idx in [LEFT_IRIS_IDX, RIGHT_IRIS_IDX]:
+                        pts = [(lm[i][0], lm[i][1]) for i in iris_idx if i < len(lm)]
+                        if pts:
+                            cx = int(np.mean([p[0] for p in pts]) * w)
+                            cy = int(np.mean([p[1] for p in pts]) * h)
+                            ex = int(cx + gh * arrow_len)
+                            ey = int(cy - gv * arrow_len)
+                            cv2.arrowedLine(vis, (cx, cy), (ex, ey),
+                                            (0, 0, 255), 2, tipLength=0.3)
+
+                # Draw YOLO detection boxes
+                for box in det.boxes:
+                    x1, y1, x2, y2 = box.bbox
+                    color = (0, 0, 255) if box.label == "phone" else (255, 255, 0)
+                    cv2.rectangle(vis, (x1, y1), (x2, y2), color, 2)
+                    label = f"{box.label} {box.confidence:.0%}"
+                    cv2.putText(vis, label, (x1, y1 - 6),
+                                cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 1)
+
+                # Resize for bandwidth
+                scale = min(480 / w, 360 / h)
+                small = cv2.resize(vis, None, fx=scale, fy=scale)
                 _, buf = cv2.imencode(".jpg", small,
-                                       [cv2.IMWRITE_JPEG_QUALITY, 65])
+                                       [cv2.IMWRITE_JPEG_QUALITY, 70])
                 socketio.emit("camera_frame", {
                     "data": base64.b64encode(buf).decode("ascii")
                 })
             except Exception as e:
                 log.debug(f"Camera encode error: {e}")
 
-        # ── Encode game surface ───────────────────────────────────────────
-        if game_surface is not None and self._frame_counter % 2 == 0:
+        # ── Encode game surface (high quality) ────────────────────────────
+        if game_surface is not None:
             try:
                 # Convert pygame Surface → numpy → JPEG
                 w, h = game_surface.get_size()
                 raw = pygame.image.tostring(game_surface, "RGB")
                 arr = np.frombuffer(raw, dtype=np.uint8).reshape((h, w, 3))
-                # Scale down for bandwidth
-                scale = min(640 / w, 480 / h, 1.0)
-                if scale < 1.0:
-                    arr = cv2.resize(arr, None, fx=scale, fy=scale)
                 # RGB → BGR for cv2
                 arr_bgr = cv2.cvtColor(arr, cv2.COLOR_RGB2BGR)
                 _, buf = cv2.imencode(".jpg", arr_bgr,
-                                       [cv2.IMWRITE_JPEG_QUALITY, 70])
+                                       [cv2.IMWRITE_JPEG_QUALITY, 88])
                 socketio.emit("game_frame", {
                     "data": base64.b64encode(buf).decode("ascii")
                 })
