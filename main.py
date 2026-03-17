@@ -38,6 +38,8 @@
 
 import argparse
 import sys
+import time
+import webbrowser
 import cv2
 import pygame
 
@@ -46,6 +48,7 @@ from core.logger                import get_logger
 from dms_engine.dms_core        import DMSCore
 from ui.ui_manager              import UIManager
 from simulation                 import SimulationManager
+from web_server                 import DashboardServer
 from config import (
     CAMERA_INDEX, CAMERA_WIDTH, CAMERA_HEIGHT, CAMERA_FPS,
     WINDOW_WIDTH, WINDOW_HEIGHT,
@@ -104,11 +107,20 @@ def main():
     ui  = UIManager()
     sim = SimulationManager()
 
+    # ── Web dashboard ────────────────────────────────────────────────────────
+    dashboard = DashboardServer(port=5000)
+    dashboard.start()
+    # Give the server a moment to start, then open browser
+    time.sleep(1.0)
+    webbrowser.open("http://localhost:5000")
+    log.info("Dashboard available at http://localhost:5000")
+
     # ── Lifecycle registration ────────────────────────────────────────────────
     tm = ThreadManager()
     tm.register("DMSCore",          start_fn=dms.start,  stop_fn=dms.stop)
     tm.register("UIManager",        start_fn=None,        stop_fn=ui.quit)
     tm.register("SimulationManager",start_fn=None,        stop_fn=None)
+    tm.register("DashboardServer",  start_fn=None,        stop_fn=dashboard.stop)
 
     # ── Start all ─────────────────────────────────────────────────────────────
     try:
@@ -159,6 +171,9 @@ def main():
                 sim_surface = sim_surf,
                 fps         = fps,
             )
+
+            # ── 6. Push to web dashboard ─────────────────────────────────────
+            dashboard.push_state(state, frame)
 
             # ── 6. Log key events ─────────────────────────────────────────────
             if state.driver_state == "SLEEPING":
