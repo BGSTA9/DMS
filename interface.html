@@ -566,37 +566,25 @@ function _drawCam(){
 }
 
 /* LOOP */
-let _lt=0,_ct=0;
-function _loop(ts){const dt=ts-_lt;_lt=ts;_drawRoad();_drawCam();_ct+=dt;if(_ct>=1000){_ct=0;if(!S.time)_renderTime();DMS.tickSession()}requestAnimationFrame(_loop)}
+let _lt=0,_ct=0,_isLive=false;
+function _loop(ts){
+  const dt=ts-_lt;_lt=ts;
+  // Only draw synthetic road/cam when NOT connected to live server
+  if(!_isLive){_drawRoad();_drawCam()}
+  _ct+=dt;
+  if(_ct>=1000){_ct=0;if(!S.time)_renderTime();DMS.tickSession()}
+  requestAnimationFrame(_loop)
+}
 
 /* API overlay */
 function showAPI(){
   const d=document.createElement('div');
   d.style.cssText='position:fixed;inset:0;background:rgba(2,4,10,.94);z-index:9999;display:flex;align-items:center;justify-content:center;font-family:var(--mono)';
   d.onclick=()=>d.remove();
-  d.innerHTML=`<div style="background:var(--panel);border:1px solid var(--bglow);border-radius:4px;padding:22px 26px;max-width:620px;width:90%;max-height:85vh;overflow-y:auto" onclick="event.stopPropagation()"><div style="font-family:var(--orb);font-size:13px;color:var(--cyan);letter-spacing:.2em;margin-bottom:12px">DMS.set( props )</div><pre style="font-size:11px;line-height:1.8;color:#4a7090;white-space:pre-wrap"><span style="color:#2a5070">// All keys optional</span>
-
-DMS.set({
-  <span style="color:#60a0d0">speed</span>: <span style="color:#70c070">55</span>,             <span style="color:#2a5070">// 0–220 km/h</span>
-  <span style="color:#60a0d0">gear</span>: <span style="color:#70c070">3</span>,              <span style="color:#2a5070">// 1–8</span>
-  <span style="color:#60a0d0">drowsiness</span>: <span style="color:#70c070">22</span>,      <span style="color:#2a5070">// 0–100</span>
-  <span style="color:#60a0d0">distraction</span>: <span style="color:#70c070">77</span>,     <span style="color:#2a5070">// 0–100</span>
-  <span style="color:#60a0d0">alertState</span>: <span style="color:#c0a060">'distracted'</span>, <span style="color:#2a5070">// 'alert'|'distracted'</span>
-  <span style="color:#60a0d0">warningBanner</span>: <span style="color:#c0a060">'DRIVER DISTRACTED'</span>, <span style="color:#2a5070">// string|null</span>
-  <span style="color:#60a0d0">laneDeviation</span>: <span style="color:#c0a060">'none'</span>,  <span style="color:#2a5070">// 'left'|'right'|'none'</span>
-  <span style="color:#60a0d0">activeDistraction</span>: <span style="color:#c0a060">'phone'</span>, <span style="color:#2a5070">// 'smoking'|'mask'|'glasses'|'drinking'|'food'|'phone'|null</span>
-  <span style="color:#60a0d0">drivingStatus</span>: <span style="color:#c0a060">'warning'</span>, <span style="color:#2a5070">// 'safe'|'warning'|'danger'|'critical'</span>
-  <span style="color:#60a0d0">emotion</span>: <span style="color:#c0a060">'neutral'</span>,   <span style="color:#2a5070">// 'neutral'|'drowsy'|'angry'|'surprised'|'happy'|'fearful'|'sad'</span>
-  <span style="color:#60a0d0">earLeft</span>: <span style="color:#70c070">0.32</span>,        <span style="color:#2a5070">// Eye Aspect Ratio 0.0–0.5  (blink threshold: 0.22)</span>
-  <span style="color:#60a0d0">earRight</span>: <span style="color:#70c070">0.31</span>,       <span style="color:#2a5070">// &lt;0.22 = eye considered closed</span>
-  <span style="color:#60a0d0">blinkRate</span>: <span style="color:#70c070">18</span>,       <span style="color:#2a5070">// blinks/min  (normal 10–20, low=drowsy)</span>
-  <span style="color:#60a0d0">blinkTotal</span>: <span style="color:#70c070">47</span>,      <span style="color:#2a5070">// total blinks this session</span>
-  <span style="color:#60a0d0">headPose</span>: { <span style="color:#60a0d0">pitch</span>: <span style="color:#70c070">-4</span>, <span style="color:#60a0d0">yaw</span>: <span style="color:#70c070">2</span>, <span style="color:#60a0d0">roll</span>: <span style="color:#70c070">1</span> },  <span style="color:#2a5070">// degrees</span>
-  <span style="color:#60a0d0">gaze</span>: { <span style="color:#60a0d0">x</span>: <span style="color:#70c070">0.1</span>, <span style="color:#60a0d0">y</span>: <span style="color:#70c070">-0.05</span> },        <span style="color:#2a5070">// -1.0 to 1.0</span>
-  <span style="color:#60a0d0">time</span>: <span style="color:#70c070">null</span>,           <span style="color:#2a5070">// 'HH:MM:SS' | null (live clock)</span>
-  <span style="color:#60a0d0">carLateralOffset</span>: <span style="color:#70c070">0</span>, <span style="color:#2a5070">// -1.0 to 1.0</span>
-  <span style="color:#60a0d0">carSpeed</span>: <span style="color:#70c070">1.0</span>,       <span style="color:#2a5070">// road scroll multiplier</span>
-});</pre><button onclick="this.closest('div').parentElement.remove()" style="margin-top:12px;padding:4px 14px;background:transparent;border:1px solid var(--bglow);color:var(--cyan);border-radius:2px;cursor:pointer;font-family:var(--mono);font-size:10px;letter-spacing:.1em">CLOSE</button></div>`;
+  d.innerHTML=`<div style="background:var(--panel);border:1px solid var(--bglow);border-radius:4px;padding:22px 26px;max-width:620px;width:90%;max-height:85vh;overflow-y:auto" onclick="event.stopPropagation()"><div style="font-family:var(--orb);font-size:13px;color:var(--cyan);letter-spacing:.2em;margin-bottom:12px">LIVE DASHBOARD</div><pre style="font-size:11px;line-height:1.8;color:#4a7090;white-space:pre-wrap"><span style="color:#2a5070">// Connected to DMS backend via WebSocket</span>
+// Camera feed + Car game streamed live
+// Keyboard controls: Arrow keys / WASD
+// All telemetry updates in real-time</pre></div>`;
   document.body.appendChild(d);
 }
 
@@ -604,13 +592,13 @@ _render();
 requestAnimationFrame(_loop);
 
 /* ═══════════════════════════════════════════════════════
-   SOCKET.IO LIVE CONNECTION
+   SOCKET.IO LIVE CONNECTION + KEYBOARD FORWARDING
 ═══════════════════════════════════════════════════════ */
 (function() {
-  // Connection status indicator
+  // Connection indicator
   const dot = document.createElement('div');
   dot.id = 'conn-dot';
-  dot.style.cssText = 'position:fixed;top:8px;right:8px;z-index:9999;display:flex;align-items:center;gap:5px;font:10px var(--mono);color:var(--text-dim);padding:3px 8px;background:rgba(0,0,0,0.5);border-radius:10px;border:1px solid var(--border);';
+  dot.style.cssText = 'position:fixed;top:8px;right:8px;z-index:9999;display:flex;align-items:center;gap:5px;font:10px var(--mono);color:var(--td);padding:3px 8px;background:rgba(0,0,0,0.6);border-radius:10px;border:1px solid var(--border);';
   dot.innerHTML = '<span style="width:6px;height:6px;border-radius:50%;background:#ff2244;"></span><span>OFFLINE</span>';
   document.body.appendChild(dot);
 
@@ -618,59 +606,103 @@ requestAnimationFrame(_loop);
   if (location.protocol === 'file:') return;
 
   const socket = io();
+
+  // Live image objects
   const camImg = new Image();
-  const camCanvas = document.getElementById('cam-canvas');
+  const gameImg = new Image();
+  const camCanvas = document.getElementById('cc');
   const camCtx = camCanvas.getContext('2d');
-  let _useLiveCamera = false;
+  const roadCanvas = document.getElementById('rc');
+  const roadCtx = roadCanvas.getContext('2d');
 
   socket.on('connect', () => {
     dot.querySelector('span:first-child').style.background = '#00ff88';
     dot.querySelector('span:last-child').textContent = 'LIVE';
-    _useLiveCamera = true;
-    console.log('[DMS] Connected to server');
+    _isLive = true;
+    console.log('[DMS] Connected to live server');
   });
 
   socket.on('disconnect', () => {
     dot.querySelector('span:first-child').style.background = '#ff2244';
     dot.querySelector('span:last-child').textContent = 'OFFLINE';
-    _useLiveCamera = false;
-    console.log('[DMS] Disconnected from server');
+    _isLive = false;
+    console.log('[DMS] Disconnected');
   });
 
+  // ── Receive telemetry ─────────────────────────────────────────────────
   socket.on('dms_update', (data) => {
     DMS.set(data);
   });
 
+  // ── Receive live camera feed ──────────────────────────────────────────
   socket.on('camera_frame', (data) => {
     camImg.onload = () => {
-      const W = camCanvas.width, H = camCanvas.height;
+      const W = camCanvas.offsetWidth, H = camCanvas.offsetHeight;
+      if (camCanvas.width !== W || camCanvas.height !== H) {
+        camCanvas.width = W; camCanvas.height = H;
+      }
       camCtx.clearRect(0, 0, W, H);
-      // Draw camera feed scaled to fill
+      // Cover-fill the canvas
       const scale = Math.max(W / camImg.width, H / camImg.height);
-      const dw = camImg.width * scale;
-      const dh = camImg.height * scale;
+      const dw = camImg.width * scale, dh = camImg.height * scale;
       camCtx.drawImage(camImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
-      // Overlay slight tint for cyberpunk look
-      camCtx.fillStyle = 'rgba(0,10,20,0.3)';
+      // Cyberpunk tint overlay
+      camCtx.fillStyle = 'rgba(0,8,16,0.25)';
       camCtx.fillRect(0, 0, W, H);
-      // HUD corners
-      camCtx.strokeStyle = 'rgba(0,229,255,0.35)';
-      camCtx.lineWidth = 1;
-      const bx = W*0.1, by = H*0.05, bw = W*0.8, bh = H*0.9;
-      const cs = 14;
-      [[bx,by],[bx+bw,by],[bx,by+bh],[bx+bw,by+bh]].forEach(([px,py],i) => {
-        const sx = i%2===0?1:-1, sy = i<2?1:-1;
+      // Corner brackets
+      camCtx.strokeStyle = 'rgba(0,229,255,0.4)';
+      camCtx.lineWidth = 1.2;
+      const cs = 13, m = 8;
+      [[m,m],[W-m,m],[m,H-m],[W-m,H-m]].forEach(([px,py],i)=>{
+        const sx=i%2===0?1:-1, sy=i<2?1:-1;
         camCtx.beginPath();
-        camCtx.moveTo(px, py+sy*cs); camCtx.lineTo(px,py); camCtx.lineTo(px+sx*cs,py);
+        camCtx.moveTo(px,py+sy*cs);camCtx.lineTo(px,py);camCtx.lineTo(px+sx*cs,py);
         camCtx.stroke();
       });
     };
     camImg.src = 'data:image/jpeg;base64,' + data.data;
   });
 
-  // Override _drawCam when live camera is active
-  const _origDrawCam = window._drawCam || (() => {});
-  window._drawCamLive = true;
+  // ── Receive live game frame ───────────────────────────────────────────
+  socket.on('game_frame', (data) => {
+    gameImg.onload = () => {
+      const W = roadCanvas.offsetWidth, H = roadCanvas.offsetHeight;
+      if (roadCanvas.width !== W || roadCanvas.height !== H) {
+        roadCanvas.width = W; roadCanvas.height = H;
+      }
+      roadCtx.clearRect(0, 0, W, H);
+      // Cover-fill
+      const scale = Math.max(W / gameImg.width, H / gameImg.height);
+      const dw = gameImg.width * scale, dh = gameImg.height * scale;
+      roadCtx.drawImage(gameImg, (W - dw) / 2, (H - dh) / 2, dw, dh);
+    };
+    gameImg.src = 'data:image/jpeg;base64,' + data.data;
+  });
+
+  // ── Forward keyboard events to server ─────────────────────────────────
+  const GAME_KEYS = new Set([
+    'ArrowUp','ArrowDown','ArrowLeft','ArrowRight',
+    'w','a','s','d','W','A','S','D',' ','Shift'
+  ]);
+
+  document.addEventListener('keydown', (e) => {
+    if (GAME_KEYS.has(e.key)) {
+      e.preventDefault();
+      socket.emit('key_down', { key: e.key });
+    }
+  });
+
+  document.addEventListener('keyup', (e) => {
+    if (GAME_KEYS.has(e.key)) {
+      e.preventDefault();
+      socket.emit('key_up', { key: e.key });
+    }
+  });
+
+  // Clear keys on window blur (prevent stuck keys)
+  window.addEventListener('blur', () => {
+    GAME_KEYS.forEach(k => socket.emit('key_up', { key: k }));
+  });
 })();
 </script>
 </body>

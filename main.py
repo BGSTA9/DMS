@@ -1,52 +1,32 @@
 #!/usr/bin/env python3
 # =============================================================================
-# main.py — Intelligent Driver Monitoring System
+# main.py — Intelligent Driver Monitoring System  (Web-Only Interface)
 #
-# Entry point for the complete DMS application.
-#
-# Architecture summary:
-#   ┌─────────────────────────────────────────────────────────┐
-#   │                        main.py                          │
-#   │                                                         │
-#   │  ┌──────────────┐   ┌──────────────┐  ┌─────────────┐   │
-#   │  │   DMSCore    │   │  UIManager   │  │ Simulation  │   │
-#   │  │  (Phase 1-3) │   │  (Phase 4)   │  │  (Phase 5)  │   │
-#   │  └──────┬───────┘   └──────┬───────┘  └──────┬──────┘   │
-#   │         │                  │                  │         │
-#   │         └──────────────────┴──────────────────┘         │
-#   │                       Main Loop                         │
-#   │             capture → update → render → tick            │
-#   └─────────────────────────────────────────────────────────┘
-#
-# Main loop:
-#   1. cv2.VideoCapture reads frame
-#   2. DMSCore.update(frame)       → AnalyticsState  (main thread, ~1ms)
-#      └── GeometryTracker         (main thread, every frame)
-#      └── DLPipeline              (background thread, ~15fps)
-#      └── AnalyticsEngine         (main thread, every frame)
-#      └── DriverStateMachine      (main thread, every frame)
-#   3. SimulationManager.update()  → pygame.Surface
-#   4. UIManager.render()          → display flip
-#   5. clock.tick(30)              → cap at 30fps
+# The browser at http://localhost:5000 is the SOLE interface.
+# No Pygame window is displayed.  Pygame runs headless for the car-game
+# physics/rendering; its surface is streamed to the browser via WebSocket.
 #
 # Usage:
 #   python main.py
-#   python main.py --camera 1        # use camera index 1
-#   python main.py --width 1280 --height 720
-#   python main.py --no-dl           # disable DL modules (geometry only)
+#   python main.py --camera 1
+#   python main.py --no-dl
 # =============================================================================
+
+import os
+# Force Pygame to run without opening a visible window
+os.environ["SDL_VIDEODRIVER"] = "dummy"
 
 import argparse
 import sys
 import time
 import webbrowser
+import signal
 import cv2
 import pygame
 
 from core.thread_manager        import ThreadManager
 from core.logger                import get_logger
 from dms_engine.dms_core        import DMSCore
-from ui.ui_manager              import UIManager
 from simulation                 import SimulationManager
 from web_server                 import DashboardServer
 from config import (
@@ -71,6 +51,8 @@ def parse_args():
                         help="Camera capture height")
     parser.add_argument("--no-dl",   action="store_true",
                         help="Disable DL modules (run geometry only)")
+    parser.add_argument("--port",    type=int, default=5000,
+                        help="Web dashboard port (default: 5000)")
     return parser.parse_args()
 
 
@@ -84,7 +66,6 @@ def open_camera(index: int, width: int, height: int) -> cv2.VideoCapture:
     cap.set(cv2.CAP_PROP_FRAME_WIDTH,  width)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
     cap.set(cv2.CAP_PROP_FPS,          CAMERA_FPS)
-    # Reduce buffer to minimize latency
     cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
     log.info(f"Camera opened: index={index} {width}×{height} @{CAMERA_FPS}fps")
     return cap
@@ -97,29 +78,32 @@ def main():
 
     log.info("╔══════════════════════════════════════════╗")
     log.info("║   Intelligent Driver Monitoring System   ║")
+    log.info("║        Web Dashboard Interface           ║")
     log.info("╚══════════════════════════════════════════╝")
+
+    # ── Pygame headless init ──────────────────────────────────────────────────
+    pygame.init()
+    # Create a tiny hidden surface so Pygame doesn't complain
+    pygame.display.set_mode((1, 1))
 
     # ── Camera ────────────────────────────────────────────────────────────────
     cap = open_camera(args.camera, args.width, args.height)
 
     # ── Instantiate modules ───────────────────────────────────────────────────
     dms = DMSCore(args.width, args.height)
-    ui  = UIManager()
     sim = SimulationManager()
 
-    # ── Web dashboard ────────────────────────────────────────────────────────
-    dashboard = DashboardServer(port=5000)
+    # ── Web dashboard (the ONLY interface) ────────────────────────────────────
+    dashboard = DashboardServer(port=args.port)
     dashboard.start()
-    # Give the server a moment to start, then open browser
-    time.sleep(1.0)
-    webbrowser.open("http://localhost:5000")
-    log.info("Dashboard available at http://localhost:5000")
+    time.sleep(0.8)
+    url = f"http://localhost:{args.port}"
+    webbrowser.open(url)
+    log.info(f"Dashboard live at {url}")
 
     # ── Lifecycle registration ────────────────────────────────────────────────
     tm = ThreadManager()
     tm.register("DMSCore",          start_fn=dms.start,  stop_fn=dms.stop)
-    tm.register("UIManager",        start_fn=None,        stop_fn=ui.quit)
-    tm.register("SimulationManager",start_fn=None,        stop_fn=None)
     tm.register("DashboardServer",  start_fn=None,        stop_fn=dashboard.stop)
 
     # ── Start all ─────────────────────────────────────────────────────────────
@@ -130,7 +114,7 @@ def main():
         cap.release()
         sys.exit(1)
 
-    log.info("Entering main loop. Press Q or ESC to quit.")
+    log.info("Entering main loop.  Press Ctrl+C to quit.")
 
     # ── Performance tracking ──────────────────────────────────────────────────
     clock     = pygame.time.Clock()
@@ -139,12 +123,13 @@ def main():
     # ── Main Loop ─────────────────────────────────────────────────────────────
     try:
         while True:
-            # ── 1. Handle window events ───────────────────────────────────────
-            if ui.handle_events():
-                log.info("Quit signal received.")
-                break
+            # ── 1. Pump Pygame events (needed for key state + timers) ─────────
+            pygame.event.pump()
 
-            # ── 2. Capture frame ──────────────────────────────────────────────
+            # ── 2. Inject browser keyboard state into Pygame ──────────────────
+            dashboard.inject_keys()
+
+            # ── 3. Capture frame ──────────────────────────────────────────────
             ret, frame = cap.read()
             if not ret:
                 log.warning("Camera read failed — retrying …")
@@ -153,29 +138,20 @@ def main():
             frame = cv2.flip(frame, 1)   # Mirror for natural feel
             frame_num += 1
 
-            # ── 3. DMS pipeline ───────────────────────────────────────────────
+            # ── 4. DMS pipeline ───────────────────────────────────────────────
             state = dms.update(frame)
 
-            # ── 4. Simulation ─────────────────────────────────────────────────
+            # ── 5. Simulation (off-screen rendering) ──────────────────────────
             sim_surf = sim.update(
                 driver_state      = state.driver_state,
                 drowsiness_score  = state.drowsiness_score,
                 distraction_score = state.distraction_score,
             )
 
-            # ── 5. Render ─────────────────────────────────────────────────────
-            fps = clock.get_fps()
-            ui.render(
-                state       = state,
-                frame_bgr   = frame,
-                sim_surface = sim_surf,
-                fps         = fps,
-            )
+            # ── 6. Push everything to web dashboard ───────────────────────────
+            dashboard.push_state(state, frame, sim_surf)
 
-            # ── 6. Push to web dashboard ─────────────────────────────────────
-            dashboard.push_state(state, frame)
-
-            # ── 6. Log key events ─────────────────────────────────────────────
+            # ── 7. Log key events ─────────────────────────────────────────────
             if state.driver_state == "SLEEPING":
                 log.warning(
                     f"[Frame {frame_num}] SLEEPING detected — "
@@ -183,10 +159,8 @@ def main():
                     f"PERCLOS={state.perclos:.2f} "
                     f"Drowsiness={state.drowsiness_score:.2f}"
                 )
-            elif state.alarm_obstruction:
-                log.warning(f"[Frame {frame_num}] CAMERA OBSTRUCTION detected.")
 
-            # ── 7. Frame cap ──────────────────────────────────────────────────
+            # ── 8. Frame cap ──────────────────────────────────────────────────
             clock.tick(30)
 
     except KeyboardInterrupt:
@@ -197,6 +171,7 @@ def main():
         log.info(f"Session ended. Total frames processed: {frame_num}")
         cap.release()
         tm.stop_all()
+        pygame.quit()
         log.info("Goodbye.")
 
 
